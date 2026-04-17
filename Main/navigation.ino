@@ -74,7 +74,6 @@ void readWallsRel(bool &wallF, bool &wallR, bool &wallB, bool &wallL) { // refer
 void writeWallsToCurrentTile(bool wallF, bool wallR, bool wallB, bool wallL) {
   Tile &t = mapGrid[x_pos][y_pos];
   t.setDiscovered(true);
-  // shouldn't absolute directions be north south east west?
   Direction absF = currentDir;
   Direction absR = rotateDir(currentDir, +1);
   Direction absB = rotateDir(currentDir, +2);
@@ -83,7 +82,17 @@ void writeWallsToCurrentTile(bool wallF, bool wallR, bool wallB, bool wallL) {
   t.setWall(absR, wallR);
   t.setWall(absB, wallB);
   t.setWall(absL, wallL);
-  // need to mark both ways.
+
+  // Propagate each detected wall to the facing neighbor
+  Direction dirs[4]  = {absF,  absR,  absB,  absL};
+  bool      walls[4] = {wallF, wallR, wallB, wallL};
+  for (int i = 0; i < 4; i++) {
+    int nx = x_pos, ny = y_pos;
+    stepForward(dirs[i], nx, ny);
+    if (inBounds(nx, ny)) {
+      mapGrid[nx][ny].setWall(opposite(dirs[i]), walls[i]);
+    }
+  }
 }
 Direction pickNextDirection() {
   Tile &t = mapGrid[x_pos][y_pos];
@@ -133,6 +142,55 @@ Direction pickNextDirection() {
 
   // figure out BFS later
   // 3) trapped
+  return absB;
+}
+
+Direction pickNextDirectionBFS() {
+  Direction absB = rotateDir(currentDir, +2);
+
+  ArduinoQueue<coord> queue = {};
+  bool      visited[MAP_SIZE][MAP_SIZE];
+  uint8_t   firstStep[MAP_SIZE][MAP_SIZE] = {}; // Direction enum value of first step to reach each cell
+
+  for (int x = 0; x < MAP_SIZE; x++)
+    for (int y = 0; y < MAP_SIZE; y++)
+      visited[x][y] = false;
+
+  visited[x_pos][y_pos] = true;
+  queue.enqueue({x_pos, y_pos});
+
+  while (queue.itemCount() > 0) {
+    coord curr = queue.getHead();
+    queue.dequeue();
+    int x = curr.x, y = curr.y;
+
+    // If this tile (not origin) is unvisited or not fully explored, go there
+    if ((x != x_pos || y != y_pos) &&
+        (!mapGrid[x][y].getVisited() || !mapGrid[x][y].getFully())) {
+      return (Direction)firstStep[x][y];
+    }
+
+    // Expand passable neighbors
+    for (int d = 0; d < 4; d++) {
+      int nx = x + dir[d][0];
+      int ny = y + dir[d][1];
+      if (!inBounds(nx, ny))           continue;
+      if (visited[nx][ny])             continue;
+      if (mapGrid[x][y].getWall((Direction)d)) continue;
+      if (mapGrid[nx][ny].getType() == BLACK)  continue;
+      if (mapGrid[nx][ny].getType() == STAIR)  continue;
+      if (mapGrid[nx][ny].getType() == BLUE || mapGrid[nx][ny].getBlue()) continue;
+
+      visited[nx][ny] = true;
+      // First step is inherited from parent, or set directly if parent is origin
+      firstStep[nx][ny] = (x == x_pos && y == y_pos)
+                          ? (uint8_t)d
+                          : firstStep[x][y];
+      queue.enqueue({nx, ny});
+    }
+  }
+
+  // No unexplored reachable tile — fall back to backtrack direction
   return absB;
 }
 
@@ -263,5 +321,18 @@ int BFS(coord currentpos, Tile mapGrid[MAP_SIZE][MAP_SIZE], coord endpos,coord p
       curr = prev[curr.x][curr.y];
     }
     return i;
-    
+
+}
+
+bool allDiscoveredFullyExplored() {
+  bool anyDiscovered = false;
+  for (int x = 0; x < MAP_SIZE; x++) {
+    for (int y = 0; y < MAP_SIZE; y++) {
+      if (mapGrid[x][y].getDiscovered()) {
+        anyDiscovered = true;
+        if (!mapGrid[x][y].getFully()) return false;
+      }
+    }
+  }
+  return anyDiscovered; // false if nothing discovered yet (prevents premature RETURN at startup)
 }

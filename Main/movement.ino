@@ -239,9 +239,9 @@ void fwd(double dist){ // in mm
     drivetrain.fw(200);
     delay(300);
   }
-  
+
   drivetrain.fullstop();
-  encoderCountA = 0; encoderCountB = 0;
+  drivetrain.reset_encoderCount(true, true);
 
 }
 // absolute turning
@@ -347,6 +347,6 @@ void absoluteturn(double angle){
   if(victimtoggle == true) mapGrid[x_pos][y_pos].setVictim(true);
   Serial.println("finished turning");
   drivetrain.fullstop();
-  encoderCountA = 0; encoderCountB = 0; // reset encoder counters.
+  drivetrain.reset_encoderCount(true, true);
 }
 // full stop function

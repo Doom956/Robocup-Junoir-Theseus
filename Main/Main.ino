@@ -194,7 +194,6 @@ void setup(){
   
   
 }
-int iterator = 0;
 void loop(){
   
   /*
@@ -231,7 +230,7 @@ void loop(){
         if(measure(1)>MIN_DIST){
           detect();
         }
-
+        
         if(victimtoggle == true) mapGrid[x_pos][y_pos].setVictim(true);
         victimtoggle = false;
       }
@@ -241,7 +240,7 @@ void loop(){
       break;
     }
     case PLAN_NEXT: {
-      plannedMoveDir = pickNextDirection();
+      plannedMoveDir = pickNextDirectionBFS();
 
       plannedTurnDeg = turnNeededDeg(plannedMoveDir);
       turnCompletedForMove = false;
@@ -298,8 +297,6 @@ void loop(){
       delay(200);
       parallel();
       delay(100);
-      iterator += 1;
-      
       victimtoggle = false;
       turnCompletedForMove = false;
       tilecheck = false;
@@ -307,7 +304,7 @@ void loop(){
       if(Pausemaze == true) state = PAUSE;
       //if(mazeTime.getTime() >= 1000000*60*6) state = RETURN;
       //if(medkits <= 0) state = RETURN;
-      if(iterator >= 15) state = RETURN;
+      if(allDiscoveredFullyExplored()) state = RETURN;
       break;
      
     }
@@ -327,7 +324,7 @@ void loop(){
       break;
     }
     case BACKPEDAL: {
-      plannedMoveDir = pickNextDirection();
+      plannedMoveDir = pickNextDirectionBFS();
      
       plannedTurnDeg = turnNeededDeg(plannedMoveDir);
       turnCompletedForMove = false;
@@ -380,7 +377,9 @@ void loop(){
             delay(200);
             parallel();
             delay(100);
+            //update currentDir
             currentDir = NORTH;
+            // 2) drive one tile
             fwd(TILE_MM);
           }
           else if(path[i-1].y-path[i].y == -1){
@@ -389,7 +388,9 @@ void loop(){
             delay(200);
             parallel();
             delay(100);
+            //update currentDir
             currentDir = SOUTH;
+            // 2) drive one tile
             fwd(TILE_MM);
           }
         }
