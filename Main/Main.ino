@@ -380,9 +380,7 @@ void loop(){
             delay(200);
             parallel();
             delay(100);
-            //update currentDir
-            currentDir = 3;
-            // 2) drive one tile
+            currentDir = NORTH;
             fwd(TILE_MM);
           }
           else if(path[i-1].y-path[i].y == -1){
@@ -391,9 +389,7 @@ void loop(){
             delay(200);
             parallel();
             delay(100);
-            //update currentDir
-            currentDir = 3;
-            // 2) drive one tile
+            currentDir = SOUTH;
             fwd(TILE_MM);
           }
         }
