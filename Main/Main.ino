@@ -231,13 +231,14 @@ void loop(){
         if(measure(1)>MIN_DIST){
           detect();
         }
-        
+
         if(victimtoggle == true) mapGrid[x_pos][y_pos].setVictim(true);
         victimtoggle = false;
       }
       delay(200);
       parallel();
       delay(100);
+      break;
     }
     case PLAN_NEXT: {
       plannedMoveDir = pickNextDirection();
