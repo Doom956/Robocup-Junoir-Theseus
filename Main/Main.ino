@@ -141,7 +141,7 @@ double headingErrorDeg(double targetDeg, double actualDeg) {
   double err = targetDeg - actualDeg;
   while (err > 180.0) err -= 360.0;
   while (err < -180.0) err += 360.0;
-  return abs(err);
+  return fabs(err);
 }
 
 bool turnCompletedSuccessfully(Direction intendedDir) {
