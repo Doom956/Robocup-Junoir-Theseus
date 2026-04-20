@@ -44,14 +44,10 @@ void fwd(double dist){ // in mm
     //if(digitalRead(logicswitch)==true) Pausemaze = true;
     // check cameras
     
-    /*
-    if(readSerial1()!=-1&&victimtoggle == false&&t.getVictim()==false){ // check serial
-      fullstop();
-      
+    if(readSerial1()!=-1 && victimtoggle==false && t.getVictim()==false){
+      drivetrain.fullstop();
       if(detectWall(3)==0){
-        Serial.println(measure(6));
-        Serial.println("victim at left");
-        //Serial.println((char)Serial2.read());
+        Serial.println("victim at left during fwd");
         myPID.pausePID(1);
         clearSerialBuffer1();
         detectCam1();
@@ -59,12 +55,10 @@ void fwd(double dist){ // in mm
         victimtoggle = true;
       }
     }
-    else if(readSerial2()!=-1&&victimtoggle == false&&t.getVictim()==false){
-      fullstop();
+    else if(readSerial2()!=-1 && victimtoggle==false && t.getVictim()==false){
+      drivetrain.fullstop();
       if(detectWall(1)==0){
-        Serial.println(measure(2));
-        Serial.println("victim at right");
-        //Serial.println((char)Serial3.read());
+        Serial.println("victim at right during fwd");
         myPID.pausePID(1);
         clearSerialBuffer2();
         detectCam2();
@@ -72,15 +66,6 @@ void fwd(double dist){ // in mm
         victimtoggle = true;
       }
     }
-    
-    if(victimtoggle == true){
-      if(encoderCountA<2*pulses/3){
-        victimAtCurrent = true;
-        mapGrid[x_pos][y_pos].setVictim(true);
-      }
-      else victimAtCurrent = false;
-    }
-    */
     // color
     
     int color = read_color(); // read color
@@ -93,14 +78,12 @@ void fwd(double dist){ // in mm
     if(color == -1&&use_color%2==0){
       drivetrain.fullstop();
       delay(100);
-      
-      //Do you mean  t.setWall(plannedMoveDir, true)
-      // find next tile, set it to black
       int nx = x_pos; int ny = y_pos;
       stepForward(currentDir,nx,ny);
       mapGrid[nx][ny].setType(3);
+      mapGrid[x_pos][y_pos].setWall(currentDir, true); // wall off this direction permanently
       blacktoggle = true;
-      
+
       while(encoderCountA >= 0 && encoderCountB >= 0){
         drivetrain.backward(200);
       }
@@ -210,8 +193,7 @@ void fwd(double dist){ // in mm
         drivetrain.set_interrupt(false,true); // stop encoders
          // PID centering
         difference = center();
-        //Serial.println(center());
-        double adjustment = myPID.getPID(difference);
+        adjustment = myPID.getPID(difference); // update outer variable, not a new one
         // center during climbing
         drivetrain.drive(200+adjustment,200+adjustment,200-adjustment,200-adjustment);
         if(drivetrain.encoderCountB >= pulses/cos(abs(myGyro.modulus(myGyro.yaw_heading())-init_yaw)*(M_PI/180))){
@@ -314,22 +296,22 @@ void absoluteturn(double angle){
       MOTORSPEED = myPID.getPID(current_angle-myGyro.inverse(angle,fasterway));
       if(readSerial1()!=-1&&victimtoggle == false&&t.getVictim()==false){
         drivetrain.fullstop();
-        if(detectWall(3)==1){
+        if(detectWall(3)==0){
           Serial.println("victim at left");
           myPID.pausePID(1);
           myTimer.pause(1);
-          
+
           clearSerialBuffer1();
           detectCam1();
           myTimer.pause(2);
           myPID.pausePID(2);
           victimtoggle = true;
         }
-        
+
       }
       else if(readSerial2()!=-1&&victimtoggle == false&&t.getVictim()==false){
         drivetrain.fullstop();
-        if(detectWall(1)==1){
+        if(detectWall(1)==0){
           Serial.println("victim at right");
           myPID.pausePID(1);
           myTimer.pause(1);

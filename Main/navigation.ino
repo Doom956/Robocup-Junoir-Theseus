@@ -94,6 +94,13 @@ void writeWallsToCurrentTile(bool wallF, bool wallR, bool wallB, bool wallL) {
     }
   }
 }
+int dir[4][2] = {
+    {0, 1},   // NORTH
+    {1, 0},   // EAST
+    {0, -1},  // SOUTH
+    {-1, 0}   // WEST
+};
+
 Direction pickNextDirection() {
   Tile &t = mapGrid[x_pos][y_pos];
 
@@ -148,20 +155,22 @@ Direction pickNextDirection() {
 Direction pickNextDirectionBFS() {
   Direction absB = rotateDir(currentDir, +2);
 
-  ArduinoQueue<coord> queue = {};
-  bool      visited[MAP_SIZE][MAP_SIZE];
-  uint8_t   firstStep[MAP_SIZE][MAP_SIZE] = {}; // Direction enum value of first step to reach each cell
+  static bool    visited[MAP_SIZE][MAP_SIZE];
+  static uint8_t firstStep[MAP_SIZE][MAP_SIZE];
+  static coord   q[MAP_SIZE * MAP_SIZE]; // fixed-size queue, no heap
 
   for (int x = 0; x < MAP_SIZE; x++)
-    for (int y = 0; y < MAP_SIZE; y++)
-      visited[x][y] = false;
+    for (int y = 0; y < MAP_SIZE; y++) {
+      visited[x][y]   = false;
+      firstStep[x][y] = 0;
+    }
 
+  int qHead = 0, qTail = 0;
   visited[x_pos][y_pos] = true;
-  queue.enqueue({x_pos, y_pos});
+  q[qTail++] = {x_pos, y_pos};
 
-  while (queue.itemCount() > 0) {
-    coord curr = queue.getHead();
-    queue.dequeue();
+  while (qHead < qTail) {
+    coord curr = q[qHead++];
     int x = curr.x, y = curr.y;
 
     // If this tile (not origin) is unvisited or not fully explored, go there
@@ -174,40 +183,32 @@ Direction pickNextDirectionBFS() {
     for (int d = 0; d < 4; d++) {
       int nx = x + dir[d][0];
       int ny = y + dir[d][1];
-      if (!inBounds(nx, ny))           continue;
-      if (visited[nx][ny])             continue;
-      if (mapGrid[x][y].getWall((Direction)d)) continue;
-      if (mapGrid[nx][ny].getType() == BLACK)  continue;
-      if (mapGrid[nx][ny].getType() == STAIR)  continue;
+      if (!inBounds(nx, ny))                                       continue;
+      if (visited[nx][ny])                                         continue;
+      if (mapGrid[x][y].getWall((Direction)d))                     continue;
+      if (mapGrid[nx][ny].getType() == BLACK)                      continue;
+      if (mapGrid[nx][ny].getType() == STAIR)                      continue;
       if (mapGrid[nx][ny].getType() == BLUE || mapGrid[nx][ny].getBlue()) continue;
 
       visited[nx][ny] = true;
-      // First step is inherited from parent, or set directly if parent is origin
+      // Inherit first step from parent; if parent is origin, this step IS the first
       firstStep[nx][ny] = (x == x_pos && y == y_pos)
                           ? (uint8_t)d
                           : firstStep[x][y];
-      queue.enqueue({nx, ny});
+      if (qTail < MAP_SIZE * MAP_SIZE) q[qTail++] = {nx, ny};
     }
   }
 
-  // No unexplored reachable tile — fall back to backtrack direction
+  // No unexplored reachable tile — fall back to backward
   return absB;
 }
 
 int turnNeededDeg(Direction direction) {
-  // Convert an absolute direction enum to an absolute heading angle.
   if (direction == 0) return 0;
   if (direction == 1) return 90;
   if (direction == 2) return 180;
-  return 270; // diff==3
-
+  return 270;
 }
-int dir[4][2] = {
-    {0, 1},
-    {1, 0},
-    {0, -1},
-    {-1, 0}
-};
 void initTile(int x, int y) {
     mapGrid[x][y].setDiscovered(false);
     mapGrid[x][y].setFully(false);
@@ -274,54 +275,55 @@ void reallocate(Tile mapgrid[MAP_SIZE][MAP_SIZE], int pos_x = 0, int pos_y = 0) 
 }
 
 // pair structure
-int BFS(coord currentpos, Tile mapGrid[MAP_SIZE][MAP_SIZE], coord endpos,coord path[MAP_SIZE * MAP_SIZE]) { // auto updates path
-    ArduinoQueue<coord> queue = {};
-    size_t rows = MAP_SIZE;
-    size_t columns = MAP_SIZE;
-    bool visited[MAP_SIZE][MAP_SIZE] = {false};
-    coord prev[MAP_SIZE][MAP_SIZE];
-    queue.enqueue(currentpos); // current tile
+int BFS(coord currentpos, Tile mapGrid[MAP_SIZE][MAP_SIZE], coord endpos, coord path[MAP_SIZE * MAP_SIZE]) {
+    static bool  visited[MAP_SIZE][MAP_SIZE];
+    static coord prev[MAP_SIZE][MAP_SIZE];
+    static coord q[MAP_SIZE * MAP_SIZE];
+
+    for (int x = 0; x < MAP_SIZE; x++)
+      for (int y = 0; y < MAP_SIZE; y++)
+        visited[x][y] = false;
+
+    int qHead = 0, qTail = 0;
+    q[qTail++] = currentpos;
     visited[currentpos.x][currentpos.y] = true;
-    //search
-    while (queue.itemCount() > 0) {
-        int x = queue.getHead().x; int y = queue.getHead().y;
-        //cout << "visting: " << x << "," << y << endl;
+
+    while (qHead < qTail) {
+        int x = q[qHead].x;
+        int y = q[qHead++].y;
 
         for (int i = 0; i < 4; i++) {
             int nx = x + dir[i][0];
             int ny = y + dir[i][1];
-            if (nx < rows && ny < columns && nx >= 0 && ny >= 0) {
-                if (!visited[nx][ny] &&
-                    !mapGrid[x][y].getWall((Direction)i) &&
-                    !mapGrid[nx][ny].getWall(opposite((Direction)i)) &&
-                    mapGrid[nx][ny].getDiscovered() &&
-                    mapGrid[nx][ny].getType() != BLACK &&
-                    mapGrid[nx][ny].getType() != STAIR) { //IMPORTANT: ADD MORE CONDITIONALS HERE 
-                    queue.enqueue(coord{nx, ny}); // add tile
-                    visited[nx][ny] = true;
-                    
-                    prev[nx][ny] = coord{x, y};
-                    
-                }
+            if (inBounds(nx, ny) &&
+                !visited[nx][ny] &&
+                !mapGrid[x][y].getWall((Direction)i) &&
+                !mapGrid[nx][ny].getWall(opposite((Direction)i)) &&
+                mapGrid[nx][ny].getDiscovered() &&
+                mapGrid[nx][ny].getType() != BLACK &&
+                mapGrid[nx][ny].getType() != STAIR) {
+                visited[nx][ny] = true;
+                prev[nx][ny] = {x, y};
+                if (qTail < MAP_SIZE * MAP_SIZE) q[qTail++] = {nx, ny};
             }
         }
-        queue.dequeue();
     }
-    //reconstruct path
-    // path[0] is (0,0), path[n] is current tile.
+
+    // If destination unreachable, return single-step path (stay put)
+    if (!visited[endpos.x][endpos.y]) {
+      path[0] = currentpos;
+      return 1;
+    }
+
+    // Reconstruct path: path[0]=endpos ... path[length-1]=currentpos
     int i = 0;
     coord curr = endpos;
     while (true) {
-      path[i] = curr;
-      i++;
-
-      if (curr.x == currentpos.x&&curr.y==currentpos.y) {
-        break;
-      }
+      path[i++] = curr;
+      if (curr.x == currentpos.x && curr.y == currentpos.y) break;
       curr = prev[curr.x][curr.y];
     }
     return i;
-
 }
 
 bool allDiscoveredFullyExplored() {

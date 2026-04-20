@@ -245,8 +245,8 @@ void loop(){
       plannedTurnDeg = turnNeededDeg(plannedMoveDir);
       turnCompletedForMove = false;
       Serial.println(plannedTurnDeg);
-      if(Pausemaze == true) state = PAUSE;
       state = EXECUTE_MOVE;
+      if(Pausemaze == true) state = PAUSE;
       break;
     }
     case EXECUTE_MOVE: {
@@ -277,17 +277,17 @@ void loop(){
       }
       // 2) drive one tile
       fwd(TILE_MM);
-      // 3) update map + robot position only on successful move
-      if(bluetoggle == true){ // stop for 5 seconds on the blue tile.
+      use_color = 0; // re-enable color detection after any ramp
+      bool wasBlue = bluetoggle;
+      if(wasBlue){ // stop for 5 seconds on blue tile
         drivetrain.fullstop();
         delay(5000);
-        mapGrid[x_pos][y_pos].setBlue(true);
       }
       bluetoggle = false;
       if(blacktoggle == false && stairtoggle == false){
         markEdgeBothWays(x_pos, y_pos, currentDir);
         stepForward(currentDir, x_pos, y_pos);
-        
+        if(wasBlue) mapGrid[x_pos][y_pos].setBlue(true); // mark tile we moved onto
       }
       else{
         state = BACKPEDAL;
@@ -305,6 +305,7 @@ void loop(){
       //if(mazeTime.getTime() >= 1000000*60*6) state = RETURN;
       //if(medkits <= 0) state = RETURN;
       if(allDiscoveredFullyExplored()) state = RETURN;
+      if(mazeTime.getTime() >= 300.0 * 1000000.0) state = RETURN; // 5-min fallback
       break;
      
     }
@@ -338,13 +339,13 @@ void loop(){
     case RETURN: {
       coord currentpos = {x_pos,y_pos};
       coord endpos = {MAP_SIZE/2,MAP_SIZE/2};
-      coord path[MAP_SIZE*MAP_SIZE];
+      static coord path[MAP_SIZE*MAP_SIZE];
       flashLED('H');
       flashLED('U');
       Serial.println("starting bfs");
       int length = BFS(currentpos,mapGrid,endpos,path);
       Serial.println("path calculated");
-      for(int i = length;i>0;i--){
+      for(int i = length-1;i>0;i--){
         // coorinates to direction
         if(path[i-1].y-path[i].y == 0){
           if(path[i-1].x-path[i].x == 1){

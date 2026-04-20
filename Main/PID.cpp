@@ -15,6 +15,8 @@ double PID::getPID(double _error){
   currentTime = micros()-(end-start); // functions are slower! you need to use micros
   delta = (error-prevError)/(currentTime - previousTime);
   cumError += error;
+  if (cumError >  1000.0) cumError =  1000.0;
+  if (cumError < -1000.0) cumError = -1000.0;
   double output = kp*error + ki*cumError + kd*delta;
   previousTime = currentTime;
   prevError = error; // update previousTime and prevError
