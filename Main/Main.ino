@@ -19,7 +19,7 @@
 #define MIN_DIST 120         // mm (tune this)
 #define TILE_MM 300         // one tile = 300mm (RCJ tile)
 #define BLACK_THRESHOLD 0.10 // color clear-channel threshold ratio for black
-#define SILVER_THRESHOLD 800 // tun3
+#define SILVER_THRESHOLD 1.5f // ratio threshold — calibrate on real silver tile (typical normal~0.8, silver~2.0+)
 float clear; 
 
 #include "MazeTile.h"
@@ -238,6 +238,7 @@ void loop(){
       delay(200);
       parallel();
       delay(100);
+      break;
     }
     case PLAN_NEXT: {
       plannedMoveDir = pickNextDirection();
@@ -277,19 +278,19 @@ void loop(){
       }
       // 2) drive one tile
       fwd(TILE_MM);
-      // 3) update map + robot position only on successful move
-      if(bluetoggle == true){ // stop for 5 seconds on the blue tile.
-        drivetrain.fullstop();
-        delay(5000);
-        mapGrid[x_pos][y_pos].setBlue(true);
-      }
-      bluetoggle = false;
+      // 3) update position first, then post-process the tile we landed on
       if(blacktoggle == false && stairtoggle == false){
         markEdgeBothWays(x_pos, y_pos, currentDir);
-        stepForward(currentDir, x_pos, y_pos);
-        
+        stepForward(currentDir, x_pos, y_pos); // x_pos/y_pos now = new tile
+        if(bluetoggle == true){ // stop for 5 seconds on the blue tile we just entered
+          drivetrain.fullstop();
+          delay(5000);
+          mapGrid[x_pos][y_pos].setBlue(true); // marks the correct (new) tile
+        }
+        bluetoggle = false;
       }
       else{
+        bluetoggle = false;
         state = BACKPEDAL;
         turnCompletedForMove = false;
         break;
@@ -346,7 +347,7 @@ void loop(){
       Serial.println("starting bfs");
       int length = BFS(currentpos,mapGrid,endpos,path);
       Serial.println("path calculated");
-      for(int i = length;i>0;i--){
+      for(int i = length - 1;i>0;i--){
         // coorinates to direction
         if(path[i-1].y-path[i].y == 0){
           if(path[i-1].x-path[i].x == 1){
@@ -380,7 +381,7 @@ void loop(){
             parallel();
             delay(100);
             //update currentDir
-            currentDir = 3;
+            currentDir = NORTH; // was: 3 (WEST) — wrong
             // 2) drive one tile
             fwd(TILE_MM);
           }
@@ -391,7 +392,7 @@ void loop(){
             parallel();
             delay(100);
             //update currentDir
-            currentDir = 3;
+            currentDir = SOUTH; // was: 3 (WEST) — wrong
             // 2) drive one tile
             fwd(TILE_MM);
           }
