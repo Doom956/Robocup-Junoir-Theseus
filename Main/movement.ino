@@ -1,23 +1,4 @@
-void encoder_update_B(){ // why the fuck is it high when going backwards???
-  int encoderState = digitalRead(encoderPin_B_B);
-  
-  if(encoderState == HIGH){
-    encoderCountB--;
-  }
-  else{
-    encoderCountB++;
-  }
-}
-void encoder_update_A(){ // every pulse consists for once going up and once going down.
-  int encoderState = digitalRead(encoderPin_A_B);
- 
-  if(encoderState == LOW){
-    encoderCountA--;
-  }
-  else{
-    encoderCountA++;
-  }
-}
+
 void init_drive(){
   drivetrain.init_drive();
   // initialize gyro
@@ -101,7 +82,7 @@ void fwd(double dist){ // in mm
       mapGrid[nx][ny].setType(3);
       blacktoggle = true;
       
-      while(encoderCountA >= 0 && encoderCountB >= 0){
+      while(drivetrain.encoderCountA >= 0 && drivetrain.encoderCountB >= 0){
         drivetrain.backward(200);
       }
       black = true;
@@ -206,7 +187,7 @@ void fwd(double dist){ // in mm
       Serial.println("climbing");
       
       while(abs(myGyro.modulus(myGyro.yaw_heading())-init_yaw) > 20){
-        Serial.println(encoderCountB);
+        Serial.println(drivetrain.encoderCountB);
         drivetrain.set_interrupt(false,true); // stop encoders
          // PID centering
         difference = center();
@@ -241,10 +222,11 @@ void fwd(double dist){ // in mm
   }
   
   drivetrain.fullstop();
-  encoderCountA = 0; encoderCountB = 0;
+  drivetrain.reset_encoderCount(true,true);
 
 }
 // absolute turning
+/*
 void absoluteturn(double angle){ 
   // create PID instance.
   PID myPID(10,0,0.3); 
@@ -347,6 +329,7 @@ void absoluteturn(double angle){
   if(victimtoggle == true) mapGrid[x_pos][y_pos].setVictim(true);
   Serial.println("finished turning");
   drivetrain.fullstop();
-  encoderCountA = 0; encoderCountB = 0; // reset encoder counters.
+  drivetrain.reset_encoderCount(true,true); // reset encoder counters.
 }
 // full stop function
+*/

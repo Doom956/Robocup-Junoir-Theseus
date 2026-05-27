@@ -1,5 +1,6 @@
 // camera communication code
 // clear serial buffers.
+
 void clearSerialBuffer1() {
   while (Serial2.available() > 0) {
     Serial2.read();  // Read and discard one byte from the buffer
@@ -11,6 +12,7 @@ void clearSerialBuffer2() {
   }
 }
 // led
+/*
 void flashLED(char victimState){
   if(victimState == 'H'){
     digitalWrite(pinHarmed,HIGH);
@@ -209,3 +211,4 @@ void detect(){ // the robot goes forward until it detects something( does not re
   drivetrain.fullstop();
 
 }
+*/

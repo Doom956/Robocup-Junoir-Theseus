@@ -32,7 +32,7 @@ int read_color(){
   uint16_t r, g, b, c, colorTemp, lux;
 
   tcs.getRawData(&r, &g, &b, &c);
- 
+  
   if((float)c/clear<BLACK_THRESHOLD){
     
     
@@ -43,6 +43,7 @@ int read_color(){
     stepForward(currentDir,nx,ny);
     mapGrid[nx][ny].setType(CHECKPOINT);
     x_checkpoint = nx; y_checkpoint = ny;
+    Serial.println((float)c/clear);
     return 3; // SILVER — prevent fall-through into blue/red checks
   }
   if(b>g&&b>r){

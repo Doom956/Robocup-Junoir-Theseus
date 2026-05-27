@@ -46,13 +46,12 @@ Adafruit_DCMotor *motorC = AFMS.getMotor(3);
 Adafruit_DCMotor *motorD = AFMS.getMotor(4);
 
 // set up encoder pins
-const int encoderPin_A_A = 2;
-const int encoderPin_A_B = 4; 
-const int encoderPin_B_A = 3;
-const int encoderPin_B_B = 5; 
+const int encoderPin_A_A = 3;
+const int encoderPin_A_B = 5; 
+const int encoderPin_B_A = 2;
+const int encoderPin_B_B = 4; 
 // encoder counters
-volatile int encoderCountB;
-volatile int encoderCountA;
+
 //drivetrain class object
 motors drivetrain(encoderPin_A_A,encoderPin_A_B,encoderPin_B_A,encoderPin_B_B);
 // wheel cpr
@@ -171,7 +170,7 @@ void setup(){
   Serial.begin(115200);
   Serial2.begin(115200); // switch to 9600 for reliability
   Serial3.begin(115200);
-  flashLED('S');
+  //flashLED('S');
   uint8_t cause = MCUSR;
   MCUSR = 0;
   Wire.begin();
@@ -191,11 +190,12 @@ void setup(){
   state = SENSE_TILE;
   
   delay(2000); // wait for camera to start.
-  
+  disp.dispenseLeft('H');
   
 }
 int iterator = 0;
 void loop(){
+  //drivetrain.drive(150,150,150,150);
   
   /*
   if(Serial2.available()>0){
@@ -208,7 +208,7 @@ void loop(){
   Serial.println("nothing");
   */
   
-  
+  /*
   static bool wallF, wallR, wallB, wallL;
   switch (state) {
     case SENSE_TILE: {
@@ -414,7 +414,7 @@ void loop(){
       break;
     }
  }
- 
+ */
 
 
 

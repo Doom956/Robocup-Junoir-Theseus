@@ -89,6 +89,7 @@ void scanAllPorts() {
   }
 }
 // measure distance
+/*
 int measure(int sensor){
   
   if(sensor ==1){
@@ -137,6 +138,63 @@ int measure(int sensor){
   if(sensor==7){
     myMux.setPort(4);
     int value = sensors[4].readRangeContinuousMillimeters();
+    if (value != -1 && value != 8191) { return value;}
+    else { return -1;}
+    
+  }
+
+  return -1;
+}
+old robot settings
+*/
+int measure(int sensor){
+  
+  if(sensor ==1){
+    myMux.setPort(1);
+    int value = sensors[1].readRangeContinuousMillimeters();
+    
+    if (value != -1 && value != 8191) { return value;}
+    else { return -1;}
+      
+  }
+  if(sensor == 2){
+    myMux.setPort(0);
+    int value = sensors[0].readRangeContinuousMillimeters();
+    if (value != -1 && value != 8191) { return value;}
+    else { return -1;}
+      
+  }
+  if(sensor==3){
+    myMux.setPort(6);
+    int value = sensors[6].readRangeContinuousMillimeters();
+    if (value != -1 && value != 8191) { return value;}
+    else { return -1;}
+    
+  }
+  if(sensor==4){
+    myMux.setPort(4);
+    int value = sensors[4].readRangeContinuousMillimeters();
+    if (value != -1 && value != 8191) { return value;}
+    else { return -1;}
+    
+  }
+  if(sensor==5){
+    myMux.setPort(5);
+    int value = sensors[5].readRangeContinuousMillimeters();
+    if (value != -1 && value != 8191) { return value;}
+    else { return -1;}
+    
+  }
+  if(sensor==6){
+    myMux.setPort(3);
+    int value = sensors[3].readRangeContinuousMillimeters();
+    if (value != -1 && value != 8191) { return value;}
+    else { return -1;}
+    
+  }
+  if(sensor==7){
+    myMux.setPort(2);
+    int value = sensors[2].readRangeContinuousMillimeters();
     if (value != -1 && value != 8191) { return value;}
     else { return -1;}
     
@@ -278,6 +336,7 @@ int center(){
   if(a<MIN_DIST && a != -1 && b<MIN_DIST && b != -1) return (measure(2)-measure(6));
   else return 0;
 }
+/*
 int leftright = 0;
 void obstacleavoidance(int leftright){ // leftright determines to manuver left or right.
   while(true){
@@ -364,6 +423,6 @@ void obstacleavoidance(int leftright){ // leftright determines to manuver left o
     }
   }
 }
-
+*/
 
 
