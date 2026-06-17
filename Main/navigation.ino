@@ -1,4 +1,10 @@
-                                                                      
+// navigation.ino — claude version 6/16/2026
+// Ported from multicore_version (M7_main/navigation.ino) into the single-core
+// main branch. All RPC.call(...) cross-core calls have been replaced with the
+// original single-core functions (drivetrain.encoderCountA, detectWall, ...).
+// Adds the multi-floor elevation features (m1/m2/m3, elevation/descend) and the
+// encoder-based victim tile marking, while keeping main's working BFS.
+
 // I assume is global?
 Direction rotateDir(Direction base, int offset) {
   return (Direction)((base + offset + 4) % 4);
@@ -11,7 +17,37 @@ void stepForward(Direction d, int &x, int &y) {
   else if (d == EAST) x++;
   else if (d == SOUTH) y--;
   else if (d == WEST) x--;
-  //if(victimAtCurrent == false&&victimtoggle == true) mapGrid[x_pos][y_pos].setVictim(true);
+}
+// pulses for distance(mm)
+double pulsesForDistanceMm(double distanceMm) {
+  return distanceMm / (wheel_diameter * M_PI) * wheel_cpr * gear_ratio;
+}
+// which tile victim is depending on encoder.
+void victimTileFromEncoder(int distanceMm, int encoderCount, int &victimX, int &victimY) {
+  victimX = x_pos;
+  victimY = y_pos;
+
+  double tilePulses = pulsesForDistanceMm(distanceMm); // total pulses to traverse a tile.
+  if(abs(encoderCount) >= tilePulses / 2.0){
+    stepForward(currentDir, victimX, victimY); // past tile midpoint -> victim belongs to the next tile.
+  }
+}
+// mark victim of tile based on encoder position (single-core: read encoder directly)
+void markVictimAtEncoderPosition(int distanceMm) {
+  int encoderCount = drivetrain.encoderCountA;
+  int victimX, victimY;
+  victimTileFromEncoder(distanceMm, encoderCount, victimX, victimY);
+  if(!inBounds(victimX, victimY)) return;
+
+  mapGrid[victimX][victimY].setVictim(true);
+  mapGrid[victimX][victimY].setDiscovered(true);
+
+  Serial.print("marked victim at tile x=");
+  Serial.print(victimX);
+  Serial.print(", y=");
+  Serial.print(victimY);
+  Serial.print(", encoderA=");
+  Serial.println(encoderCount);
 }
 
 bool inBounds(int x, int y) {
@@ -24,6 +60,8 @@ void initializeMap() {
       mapGrid[x][y].setDiscovered(false);
       mapGrid[x][y].setFully(false);
       mapGrid[x][y].setVisited(false);
+      mapGrid[x][y].setElevate(false);
+      mapGrid[x][y].setDescend(false);
       for (int d = 0; d < 4; d++) {
         mapGrid[x][y].setWall(d, false);
         mapGrid[x][y].setEdge(d, false);
@@ -106,11 +144,11 @@ Direction pickNextDirection() {
   auto isBlackTile = [&](int nx, int ny){
     return mapGrid[nx][ny].getType() == BLACK;
   };
-  
+
   // 1) try open + untraveled first
   for (int i = 0; i < 3; i++) {
     int nx = x_pos, ny = y_pos;
-    
+
     Direction d = priority[i];
     stepForward(d,nx,ny);
 
@@ -150,17 +188,20 @@ int dir[4][2] = {
     {0, -1},
     {-1, 0}
 };
-void initTile(int x, int y) {
-    mapGrid[x][y].setDiscovered(false);
-    mapGrid[x][y].setFully(false);
+void initTile(int x, int y, Grid& map) {
+    map[x][y].setDiscovered(false);
+    map[x][y].setFully(false);
+    map[x][y].setVisited(false);
+    map[x][y].setElevate(false);
+    map[x][y].setDescend(false);
     for (int d = 0; d < 4; d++) {
-        mapGrid[x][y].setWall(d, false);
-        mapGrid[x][y].setEdge(d, false);
+        map[x][y].setWall(d, false);
+        map[x][y].setEdge(d, false);
     }
-    mapGrid[x][y].setType(BLANK);
+    map[x][y].setType(BLANK);
 }
 
-void reallocate(Tile mapgrid[MAP_SIZE][MAP_SIZE], int pos_x = 0, int pos_y = 0) { //input mapgrid, and next tile location
+void reallocate(Grid& mapgrid, int pos_x = 0, int pos_y = 0) { //input mapgrid, and next tile location
     //cout << "start reallocate" << endl;
 
     //expand to bottom (remove top)
@@ -168,11 +209,17 @@ void reallocate(Tile mapgrid[MAP_SIZE][MAP_SIZE], int pos_x = 0, int pos_y = 0) 
         for (int i = 0; i < MAP_SIZE - 1; i++) {
             for (int j = 0; j < MAP_SIZE; j++) {
                 mapgrid[i][j] = mapgrid[i + 1][j];
+                m1[i][j] = m1[i + 1][j];
+                m2[i][j] = m2[i + 1][j];
+                m3[i][j] = m3[i + 1][j];
             }
             //printmap(mapgrid);
         }
         for (int i = 0; i < MAP_SIZE; i++) {
-            initTile(MAP_SIZE - 1, i);
+            initTile(MAP_SIZE - 1, i, mapgrid);
+            initTile(MAP_SIZE - 1, i, m1);
+            initTile(MAP_SIZE - 1, i, m2);
+            initTile(MAP_SIZE - 1, i, m3);
         }
     }
     //expand to top (remove bottom)
@@ -180,11 +227,17 @@ void reallocate(Tile mapgrid[MAP_SIZE][MAP_SIZE], int pos_x = 0, int pos_y = 0) 
         for (int i = MAP_SIZE-1; i > 0; i--) {
             for (int j = 0; j < MAP_SIZE; j++) {
                 mapgrid[i][j] = mapgrid[i - 1][j];
+                m1[i][j] = m1[i - 1][j];
+                m2[i][j] = m2[i - 1][j];
+                m3[i][j] = m3[i - 1][j];
             }
             //printmap(mapgrid);
         }
         for (int i = 0; i < MAP_SIZE; i++) {
-            initTile(0, i);
+            initTile(0, i, mapgrid);
+            initTile(0, i, m1);
+            initTile(0, i, m2);
+            initTile(0, i, m3);
         }
     }
 
@@ -193,11 +246,17 @@ void reallocate(Tile mapgrid[MAP_SIZE][MAP_SIZE], int pos_x = 0, int pos_y = 0) 
         for (int j = 0; j < MAP_SIZE - 1; j++) {
             for (int i = 0; i < MAP_SIZE; i++) {
                 mapgrid[i][j] = mapgrid[i][j+1];
+                m1[i][j] = m1[i][j+1];
+                m2[i][j] = m2[i][j+1];
+                m3[i][j] = m3[i][j+1];
             }
             //printmap(mapgrid);
         }
         for (int i = 0; i < MAP_SIZE; i++) {
-            initTile(i, MAP_SIZE-1);
+            initTile(i, MAP_SIZE-1, mapgrid);
+            initTile(i, MAP_SIZE-1, m1);
+            initTile(i, MAP_SIZE-1, m2);
+            initTile(i, MAP_SIZE-1, m3);
         }
     }
 
@@ -206,17 +265,60 @@ void reallocate(Tile mapgrid[MAP_SIZE][MAP_SIZE], int pos_x = 0, int pos_y = 0) 
         for (int j = MAP_SIZE - 1; j > 0; j--) {
             for (int i = 0; i < MAP_SIZE; i++) {
                 mapgrid[i][j] =  mapgrid[i][j - 1];
+                m1[i][j] = m1[i][j-1];
+                m2[i][j] = m2[i][j-1];
+                m3[i][j] = m3[i][j-1];
             }
             //printmap(mapgrid);
         }
         for (int i = 0; i < MAP_SIZE; i++) {
-            initTile(i, 0);
+            initTile(i, 0, mapgrid);
+            initTile(i, 0, m1);
+            initTile(i, 0, m2);
+            initTile(i, 0, m3);
         }
     }
 }
 
+// Move up one floor. The current floor grid is saved into the appropriate
+// storage grid (m1/m2/m3) and the active mapgrid is swapped to the floor above.
+void elevation(Grid& mapgrid, int xpos, int ypos, Grid& m1, Grid& m2, Grid& m3, int& floor){
+  mapgrid[xpos][ypos].setElevate(true);
+  if(floor == 1){
+    m1 = mapgrid;
+    mapgrid = m2;
+  } else if(floor == 2){
+    m2 = mapgrid;
+    mapgrid = m3;
+  }
+  mapgrid[xpos][ypos].setDescend(true);
+  floor++;
+}
+
+// Move down one floor.
+void descend(Grid& mapgrid, int xpos, int ypos, Grid& m1, Grid& m2, Grid& m3, int& floor){
+  mapgrid[xpos][ypos].setDescend(true);
+  if(floor == 1){
+    m1 = m3; //m3 should always be empty if descended twice
+    m3 = m2;
+    m2 = m1;
+    mapgrid = m1;
+    floor++;
+  }
+  if(floor == 2){
+    m2 = mapgrid;
+    mapgrid = m1;
+  }
+  if(floor == 3){
+    m3 = mapgrid;
+    mapgrid = m2;
+  }
+  mapgrid[xpos][ypos].setElevate(true);
+  floor--;
+}
+
 // pair structure
-int BFS(coord currentpos, Tile mapGrid[MAP_SIZE][MAP_SIZE], coord endpos,coord path[MAP_SIZE * MAP_SIZE]) { // auto updates path
+int BFS(coord currentpos, Grid& mapGrid, coord endpos, coord path[MAP_SIZE * MAP_SIZE]) { // auto updates path
     ArduinoQueue<coord> queue = {};
     size_t rows = MAP_SIZE;
     size_t columns = MAP_SIZE;
@@ -238,12 +340,12 @@ int BFS(coord currentpos, Tile mapGrid[MAP_SIZE][MAP_SIZE], coord endpos,coord p
                     !mapGrid[nx][ny].getWall(opposite((Direction)i)) &&
                     mapGrid[nx][ny].getDiscovered() &&
                     mapGrid[nx][ny].getType() != BLACK &&
-                    mapGrid[nx][ny].getType() != STAIR) { //IMPORTANT: ADD MORE CONDITIONALS HERE 
+                    mapGrid[nx][ny].getType() != STAIR) { //IMPORTANT: ADD MORE CONDITIONALS HERE
                     queue.enqueue(coord{nx, ny}); // add tile
                     visited[nx][ny] = true;
-                    
+
                     prev[nx][ny] = coord{x, y};
-                    
+
                 }
             }
         }
@@ -267,5 +369,5 @@ int BFS(coord currentpos, Tile mapGrid[MAP_SIZE][MAP_SIZE], coord endpos,coord p
       curr = prev[curr.x][curr.y];
     }
     return i;
-    
+
 }

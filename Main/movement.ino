@@ -4,6 +4,34 @@ void init_drive(){
   // initialize gyro
   myGyro.init_Gyro();
 }
+
+// Service a camera victim that the RTOS thread flagged via victimPending.
+// The caller (fwd/absoluteturn) has already paused its PID + timer. This stops
+// the drivetrain, identifies the victim on the wall, dispenses the rescue kit,
+// and labels the correct tile using the encoder position. (claude version 6/16/2026)
+void serviceCameraVictim(){
+  drivetrain.fullstop();
+  if(victimSide == 1){            // left camera (Serial3)
+    if(detectWall(3) == 0){       // RCJ victims are wall-mounted
+      Serial.println("victim at left");
+      clearSerialBuffer1();
+      detectCam1();
+      markVictimAtEncoderPosition(TILE_MM);
+      victimtoggle = true;
+    }
+  }
+  else if(victimSide == 2){       // right camera (Serial2)
+    if(detectWall(1) == 0){
+      Serial.println("victim at right");
+      clearSerialBuffer2();
+      detectCam2();
+      markVictimAtEncoderPosition(TILE_MM);
+      victimtoggle = true;
+    }
+  }
+  isVictim = true;       // at most one victim serviced per move
+  victimPending = false; // re-enable the camera thread
+}
 // full stop
 
 void fwd(double dist){ // in mm
@@ -17,78 +45,52 @@ void fwd(double dist){ // in mm
   PID myPID(0.30,0,0.2); // pid for centering
   PID Scale_PID(0.002,0,0.0008); // pid for encoder
   Serial.println("forwarding");
+  // allow the camera RTOS thread to flag victims for this move
+  motionActive = true;
+  isVictim = false;
+  victimPending = false;
   int init_yaw = myGyro.modulus((int)myGyro.yaw_heading());
   int front_left_current=measure(7); int front_right_current=measure(1);
   int front_left_last=measure(7); int front_right_last=measure(1);
   timer myTime;
   myTime.reset_delta_time();
   while((climbtoggle==true||(drivetrain.encoderCountA+drivetrain.encoderCountB)/2<=pulses)&&black!=true){
-    //if(digitalRead(logicswitch)==true) Pausemaze = true;
-    // check cameras
-    
-    /*
-    if(readSerial1()!=-1&&victimtoggle == false&&t.getVictim()==false){ // check serial
-      fullstop();
-      
-      if(detectWall(3)==0){
-        Serial.println(measure(6));
-        Serial.println("victim at left");
-        //Serial.println((char)Serial2.read());
-        myPID.pausePID(1);
-        clearSerialBuffer1();
-        detectCam1();
-        myPID.pausePID(2);
-        victimtoggle = true;
+    // Service a camera victim flagged by the RTOS thread: stop, pause PID +
+    // timer, identify + dispense, then resume. (claude version 6/16/2026)
+    if(victimPending){
+      myPID.pausePID(1);
+      Scale_PID.pausePID(1);
+      myTime.pause(1);
+      serviceCameraVictim();
+      myPID.pausePID(2);
+      Scale_PID.pausePID(2);
+      myTime.pause(2);
+    }
+    // color: detect black (stop + back off) and blue (swamp) tiles ahead.
+    // Skipped on ramps / upper floors where the color sensor is unreliable
+    // (use_color is incremented after each climbed ramp section below).
+    if(use_color == 0){
+      int color = read_color(); // also marks silver checkpoints internally
+      if(color == 1){ // blue tile ahead
+        bluetoggle = true;
+        int nx = x_pos; int ny = y_pos;
+        stepForward(currentDir,nx,ny);
+        mapGrid[nx][ny].setType(BLUE);
+      }
+      else if(color == -1){ // black tile ahead -> stop, mark next tile, back off
+        drivetrain.fullstop();
+        delay(100);
+        Serial.println("black");
+        int nx = x_pos; int ny = y_pos;
+        stepForward(currentDir,nx,ny);
+        mapGrid[nx][ny].setType(BLACK);
+        blacktoggle = true;
+        while(drivetrain.encoderCountA >= 0 && drivetrain.encoderCountB >= 0){
+          drivetrain.backward(200);
+        }
+        black = true;
       }
     }
-    else if(readSerial2()!=-1&&victimtoggle == false&&t.getVictim()==false){
-      fullstop();
-      if(detectWall(1)==0){
-        Serial.println(measure(2));
-        Serial.println("victim at right");
-        //Serial.println((char)Serial3.read());
-        myPID.pausePID(1);
-        clearSerialBuffer2();
-        detectCam2();
-        myPID.pausePID(2);
-        victimtoggle = true;
-      }
-    }
-    
-    if(victimtoggle == true){
-      if(encoderCountA<2*pulses/3){
-        victimAtCurrent = true;
-        mapGrid[x_pos][y_pos].setVictim(true);
-      }
-      else victimAtCurrent = false;
-    }
-    */
-    // color
-    /*
-    int color = read_color(); // read color
-    if(color == 1){
-      bluetoggle = true;
-      int nx = x_pos; int ny = y_pos;
-      stepForward(currentDir,nx,ny);
-      mapGrid[nx][ny].setType(1);
-    }
-    if(color == -1){
-      drivetrain.fullstop();
-      delay(100);
-      Serial.println("black");
-      //Do you mean  t.setWall(plannedMoveDir, true)
-      // find next tile, set it to black
-      int nx = x_pos; int ny = y_pos;
-      stepForward(currentDir,nx,ny);
-      mapGrid[nx][ny].setType(3);
-      blacktoggle = true;
-      
-      while(drivetrain.encoderCountA >= 0 && drivetrain.encoderCountB >= 0){
-        drivetrain.backward(200);
-      }
-      black = true;
-    }
-    */
     // PID centering
     difference = center();
     //Serial.println(center());
@@ -226,19 +228,24 @@ void fwd(double dist){ // in mm
     delay(300);
   }
   Serial.println("stop- end of fwd");
+  motionActive = false; // camera thread idles until the next move
   drivetrain.fullstop();
   drivetrain.reset_encoderCount(true,true);
 
 }
 // absolute turning
 
-void absoluteturn(double angle){ 
+void absoluteturn(double angle){
   // create PID instance.
-  PID myPID(10,0,0.3); 
+  PID myPID(10,0,0.3);
   double MOTORSPEED = 0;
   double current_angle=myGyro.heading();
   bool fasterway = false;
   Tile &t = mapGrid[x_pos][y_pos]; // tile object to update
+  // allow the camera RTOS thread to flag victims during the turn
+  motionActive = true;
+  isVictim = false;
+  victimPending = false;
   if(abs(angle-current_angle)> abs(angle-(360-current_angle))){
     current_angle = myGyro.inverse(current_angle,true); // make sure the robot turns the least amount
     fasterway = true;
@@ -251,6 +258,11 @@ void absoluteturn(double angle){
 
   if(myGyro.inverse(angle,fasterway) - current_angle > 0){
     while(true){
+      if(victimPending){ // service camera victim mid-turn (claude version 6/16/2026)
+        myPID.pausePID(1); myTimer.pause(1);
+        serviceCameraVictim();
+        myPID.pausePID(2); myTimer.pause(2);
+      }
       motorB->run(BACKWARD);
       motorD->run(BACKWARD);
       if(myGyro.inverse(angle,fasterway)-current_angle<=0 && current_angle < 190) break;
@@ -266,6 +278,11 @@ void absoluteturn(double angle){
 
   else if(myGyro.inverse(angle,fasterway)-current_angle<0) {
     while(true){
+      if(victimPending){ // service camera victim mid-turn (claude version 6/16/2026)
+        myPID.pausePID(1); myTimer.pause(1);
+        serviceCameraVictim();
+        myPID.pausePID(2); myTimer.pause(2);
+      }
       motorA->run(BACKWARD);
       motorC->run(BACKWARD);
       if(myGyro.inverse(angle,fasterway)-current_angle>=0 && current_angle > 170) break;
@@ -279,6 +296,7 @@ void absoluteturn(double angle){
   
   if(victimtoggle == true) mapGrid[x_pos][y_pos].setVictim(true);
   Serial.println("finished turning");
+  motionActive = false; // camera thread idles until the next move
   drivetrain.fullstop();
   drivetrain.reset_encoderCount(true,true); // reset encoder counters.
 }

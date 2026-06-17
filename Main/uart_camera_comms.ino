@@ -12,7 +12,6 @@ void clearSerialBuffer2() {
   }
 }
 // led
-/*
 void flashLED(char victimState){
   if(victimState == 'H'){
     digitalWrite(pinHarmed,HIGH);
@@ -30,7 +29,6 @@ void flashLED(char victimState){
   digitalWrite(pinStable,LOW);
   digitalWrite(pinUnharmed,LOW);
 }
-*/
 int readSerial1(){ // left
   char sample;
   int output;
@@ -86,7 +84,6 @@ int readSerial2(){ //right
     return -1;
   }
 }
-/*
 void detectCam1(){ // doesn't return anything.
    // read buffer
   // if there is content, take 5 samples and take the most common letter.
@@ -207,10 +204,9 @@ void detect(){ // the robot goes forward until it detects something( does not re
   }
   
   // backpedal
-  while(encoderCountA > 0){
+  while(drivetrain.encoderCountA > 0){
     drivetrain.backward(100);
   }
   drivetrain.fullstop();
 
 }
-*/
