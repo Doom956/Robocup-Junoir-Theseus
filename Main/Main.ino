@@ -136,8 +136,6 @@ const int pinUnharmed = 29;
 // camera GPIOs
 const int gpio1 = 13;
 const int gpio2 = 12;
-// de-activate color sensor while climbing
-int use_color = 0;
 // stepper variables
 const int angle_offset = 44;
 const int angle_increment = 22;
@@ -147,6 +145,9 @@ const int logicswitch = 31;
 volatile bool Pausemaze = false; // set by pauseThread, read by loop()
 int x_checkpoint, y_checkpoint;
 bool tilecheck = false;
+
+// Forward declaration: Arduino can't auto-prototype template return types
+//std::deque<std::pair<int, std::pair<int,int>>> BFS(std::pair<int, std::pair<int,int>> currentpos, Grid& m1, Grid& m2, Grid& m3, std::pair<int, std::pair<int,int>> endpos, bool allowStairsAndBlue = false);
 
 double headingErrorDeg(double targetDeg, double actualDeg) {
   double err = targetDeg - actualDeg;
@@ -170,6 +171,7 @@ volatile bool isVictim = false;      // a victim already handled during current 
 rtos::Thread cameraThread;
 void cameraTask(){
   while(true){
+    
     if(motionActive && !victimPending && !isVictim){
       if(mapGrid[x_pos][y_pos].getVictim() == false){
         if(readSerial1() != -1){        // left camera (Serial3)
@@ -250,9 +252,17 @@ void setup(){
   pauseThread.start(pauseTask);
 
   delay(2000); // wait for camera to start.
+  
 }
 int iterator = 0;
 void loop(){
+  for(int i = 0;i<=7;i++){
+    Serial.print(i + " ");
+    Serial.println(measure(i));
+    delay(300);
+  }
+  //Serial.println(measure(7));
+  /*
   static bool wallF, wallR, wallB, wallL;
   switch (state) {
     case SENSE_TILE: {
@@ -397,7 +407,7 @@ void loop(){
       flashLED('H');
       flashLED('U');
       Serial.println("starting bfs");
-      deque<pair<int, pair<int,int>>> path = BFS(currentpos, m1, m2, m3, endpos,false);
+      std::deque<std::pair<int, std::pair<int,int>>> path = BFS(currentpos, m1, m2, m3, endpos, false);
       if(path.empty()){
         Serial.println("strict path failed, retrying with stairs/blue allowed");
         path = BFS(currentpos, m1, m2, m3, endpos, true);
@@ -447,4 +457,5 @@ void loop(){
       break;
     }
  }
+ */
 }

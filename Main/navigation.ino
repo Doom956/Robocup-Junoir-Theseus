@@ -375,15 +375,15 @@ int BFS(coord currentpos, Grid& mapGrid, coord endpos, coord path[MAP_SIZE * MAP
 */
 // allowStairsAndBlue: if true, STAIR and BLUE tiles are traversable (fallback mode).
 // Returns empty deque if endpos is unreachable under the given constraints.
-std::deque<std::pair<int, pair<int,int>>> BFS(std::pair<int, std::pair<int, int>> currentpos, Grid& m1, Grid& m2, Grid& m3, std::pair<int, std::pair<int, int>> endpos, bool allowStairsAndBlue = false) {
-    std::deque<pair<int, pair<int, int>>> queue = {};
+std::deque<std::pair<int, std::pair<int,int>>> BFS(std::pair<int, std::pair<int, int>> currentpos, Grid& m1, Grid& m2, Grid& m3, std::pair<int, std::pair<int, int>> endpos, bool allowStairsAndBlue = false) {
+    std::deque<std::pair<int, std::pair<int, int>>> queue;
     size_t rows = MAP_SIZE;
     size_t columns = MAP_SIZE;
-    vector<vector<vector<bool>>> visited(3, vector<vector<bool>>(rows, std::vector<bool>(columns, false)));
+    std::vector<std::vector<std::vector<bool>>> visited(3, std::vector<std::vector<bool>>(rows, std::vector<bool>(columns, false)));
     // prev[z][x][y] = the (z,x,y) coord we came from. dims: [3][MAP_SIZE][MAP_SIZE]
-    vector<vector<vector<pair<int, std::pair<int, int>>>>> prev(3, vector<vector<std::pair<int, pair<int, int>>>>(MAP_SIZE, vector<std::pair<int, std::pair<int, int>>>(MAP_SIZE)));
+    std::vector<std::vector<std::vector<std::pair<int, std::pair<int, int>>>>> prev(3, std::vector<std::vector<std::pair<int, std::pair<int, int>>>>(MAP_SIZE, std::vector<std::pair<int, std::pair<int, int>>>(MAP_SIZE)));
 
-    array<array<array<Tile, MAP_SIZE>, MAP_SIZE>, 3> map = { m1, m2, m3 };
+    std::array<std::array<std::array<Tile, MAP_SIZE>, MAP_SIZE>, 3> map = { m1, m2, m3 };
     queue.push_back(currentpos);
     visited[currentpos.first][currentpos.second.first][currentpos.second.second] = true;
 
@@ -427,9 +427,9 @@ std::deque<std::pair<int, pair<int,int>>> BFS(std::pair<int, std::pair<int, int>
 
     // reconstruct: walk backward from endpos to currentpos via prev[], push_front
     // so path[0]=currentpos, path[last]=endpos
-    deque<pair<int, pair<int,int>>> path;
+    std::deque<std::pair<int, std::pair<int,int>>> path;
     path.push_front(endpos);
-    pair<int, pair<int,int>> curr = prev[endpos.first][endpos.second.first][endpos.second.second];
+    std::pair<int, std::pair<int,int>> curr = prev[endpos.first][endpos.second.first][endpos.second.second];
     while (curr != currentpos) {
         path.push_front(curr);
         curr = prev[curr.first][curr.second.first][curr.second.second];

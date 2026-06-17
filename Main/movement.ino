@@ -41,29 +41,25 @@ void fwd(double dist){ // in mm
       myTime.pause(2);
     }
     // color: detect black (stop + back off) and blue (swamp) tiles ahead.
-    // Skipped on ramps / upper floors where the color sensor is unreliable
-    // (use_color is incremented after each climbed ramp section below).
-    if(use_color == 0){
-      int color = read_color(); // also marks silver checkpoints internally
-      if(color == 1){ // blue tile ahead
-        bluetoggle = true;
-        int nx = x_pos; int ny = y_pos;
-        stepForward(currentDir,nx,ny);
-        mapGrid[nx][ny].setType(BLUE);
+    int color = read_color(); // also marks silver checkpoints internally
+    if(color == 1){ // blue tile ahead
+      bluetoggle = true;
+      int nx = x_pos; int ny = y_pos;
+      stepForward(currentDir,nx,ny);
+      mapGrid[nx][ny].setType(BLUE);
+    }
+    else if(color == -1){ // black tile ahead -> stop, mark next tile, back off
+      drivetrain.fullstop();
+      delay(100);
+      Serial.println("black");
+      int nx = x_pos; int ny = y_pos;
+      stepForward(currentDir,nx,ny);
+      mapGrid[nx][ny].setType(BLACK);
+      blacktoggle = true;
+      while(drivetrain.encoderCountA >= 0 && drivetrain.encoderCountB >= 0){
+        drivetrain.backward(200);
       }
-      else if(color == -1){ // black tile ahead -> stop, mark next tile, back off
-        drivetrain.fullstop();
-        delay(100);
-        Serial.println("black");
-        int nx = x_pos; int ny = y_pos;
-        stepForward(currentDir,nx,ny);
-        mapGrid[nx][ny].setType(BLACK);
-        blacktoggle = true;
-        while(drivetrain.encoderCountA >= 0 && drivetrain.encoderCountB >= 0){
-          drivetrain.backward(200);
-        }
-        black = true;
-      }
+      black = true;
     }
     // PID centering
     difference = center();
@@ -81,86 +77,10 @@ void fwd(double dist){ // in mm
       delay(50);
       break;
     }
-    
-    /*
-    if(myTime.delta_time()>200000){
-      Serial.println("ping");
-      myTime.reset_delta_time();
-      Serial.println(front_left_current-front_left_last);
-      front_left_last = front_left_current;
-      front_right_last=front_right_current;
-      if(front_left_current-front_left_last>1&&front_right_current-front_right_last>1&&climbtoggle == false&&encoderCountA>pulses/30&&encoderCountA<pulses*29/30&&front_left_current!=-1&&front_right_current!=-1){
-        delay(500);
-        Serial.println(front_left_current-front_left_last);
-        detachInterrupt(digitalPinToInterrupt(encoderPin_A_A));
-        detachInterrupt(digitalPinToInterrupt(encoderPin_B_A));
-        motorA->run(BACKWARD);
-        motorB->run(BACKWARD);
-        motorC->run(BACKWARD);
-        motorD->run(BACKWARD);
-        motorA->setSpeed(150);
-        motorB->setSpeed(150);
-        motorC->setSpeed(150);
-        motorD->setSpeed(150);
-        delay(250);
-        fullstop();
-        delay(200);
-        absoluteturn(myGyro.opposite_heading(plannedTurnDeg)); // turn 180
-        delay(200);
-        motorA->run(BACKWARD);
-        motorB->run(BACKWARD);
-        motorC->run(BACKWARD);
-        motorD->run(BACKWARD);
-        attachInterrupt(digitalPinToInterrupt(encoderPin_A_A), encoder_update_A, RISING); // turn encoders back on
-        attachInterrupt(digitalPinToInterrupt(encoderPin_B_A), encoder_update_B, RISING);
-        while(encoderCountA>-pulses*1.3&&encoderCountB>-pulses*1.3){
-          motorA->setSpeed(150);
-          motorB->setSpeed(150);
-          motorC->setSpeed(150);
-          motorD->setSpeed(150);
-        }
-        fullstop();
-        delay(200);
-        absoluteturn(plannedTurnDeg);
-        delay(100);
-        break;
-        continue;
-      }
-    }
-    */
-    // self correction
-    // if acceleration is greater than a certain value and it is not just a stop then do something.
-    /*
-    double d = myGyro.get_filtered_acceleration();
-    Serial.println(d);
-    if(abs(d)>0.5&&encoderCountA>pulses/30&&encoderCountA<pulses*29/30&&victimtoggle==false){
-      Serial.println("botched fwd");
-      Serial.println(d);
-      // step 1: go back
-      motorA->run(BACKWARD);
-      motorB->run(BACKWARD);
-      motorC->run(BACKWARD);
-      motorD->run(BACKWARD);
-      motorA->setSpeed(150);
-      motorB->setSpeed(150);
-      motorC->setSpeed(150);
-      motorD->setSpeed(150);
-      delay(500);
-      fullstop();
-      delay(200);
-      // step 2: turn( with slight offset)
-      absoluteturn(init_heading+(myGyro.modulus((int)myGyro.heading())-myGyro.modulus((int)init_heading)>0 ? -10: 10)); // boundary condition kinda broken but we can fix it in the future.
-      // step 3: reset encoders
-      encoderCountA = 0; encoderCountB = 0;
-    }
-    */
-    // check for steps( stop)
-    /*
-    
-    */
     // check yaw heading
     // if it is greater than 25, the robot is going up a slope, so the encoder is turned off.
      if(abs(myGyro.modulus(myGyro.yaw_heading())-init_yaw) > 20){
+      Serial.println("climbing");
       int _encoderCountB = drivetrain.encoderCountB;
       climbtoggle = true;
       drivetrain.reset_encoderCount(true, false);
@@ -182,7 +102,6 @@ void fwd(double dist){ // in mm
           drivetrain.reset_encoderCount(false,true);
         } // track tiles
       }
-      use_color++;
       drivetrain.set_interrupt(true,true);
       drivetrain.set_encoderCountB(_encoderCountB);
     }
