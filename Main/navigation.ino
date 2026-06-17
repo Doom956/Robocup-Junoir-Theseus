@@ -380,7 +380,7 @@ deque<pair<int, pair<int,int>>> BFS(pair<int, pair<int, int>> currentpos, Grid& 
     size_t columns = MAP_SIZE;
     vector<vector<vector<bool>>> visited(3, vector<vector<bool>>(rows, vector<bool>(columns, false))); //visited tiles of form (z, x, y)
     deque<pair<int, pair<int, int>>> path = {}; //coordinates of form (z, (x,y)) ex. z accessed by path[n].first, x accessed by path[n].second.first
-    vector<vector<vector<pair<int, pair<int, int>>>>> prev(MAP_SIZE, vector<vector<pair<int, pair<int, int>>>>(MAP_SIZE, vector<pair<int, pair<int, int>>>(MAP_SIZE))); //previous coordnates accessed by prev[x][y].second.first, floor by prev[x][y].first
+    vector<vector<vector<pair<int, pair<int, int>>>>> prev(3, vector<vector<pair<int, pair<int, int>>>>(3, vector<pair<int, pair<int, int>>>(MAP_SIZE))); //previous coordnates accessed by prev[x][y].second.first, floor by prev[x][y].first
 
     array<array<array<Tile, MAP_SIZE>, MAP_SIZE>, 3> map = { m1, m2, m3 };
     queue.push_back(currentpos);
@@ -389,32 +389,33 @@ deque<pair<int, pair<int,int>>> BFS(pair<int, pair<int, int>> currentpos, Grid& 
     //search
     while (queue.size() > 0) {
         int x = queue[0].second.first; int y = queue[0].second.second; int z = queue[0].first; //get x,y,z from queue
-        cout << "visting: " << x << "," << y << "," << z << endl;
+        
+        
 
         for (int i = 0; i < 4; i++) { // cycle through possible directions.
             int nx = x + dir[i][0];
             int ny = y + dir[i][1];
             int nz = z;
-
-            //add 3d floor change here
-            if (map[nz][nx][ny].getElevate()) {
-                nz++;
-            }
-            else if (map[nz][nx][ny].getDescend()) {
-                nz--;
-            }
-
             if (nx < rows && ny < columns && nx >= 0 && ny >= 0 && nz < 3 && nz >= 0) {
-                if (!visited[nz][nx][ny] && !map[nz][nx][ny].getWall(i)&&mapGrid[nx][ny].getDiscovered() &&
-                    mapGrid[nx][ny].getType() != BLACK &&
-                    mapGrid[nx][ny].getType() != STAIR&&mapGrid[nx][ny].getType() != BLUE) {
-                    queue.push_back(pair<int, pair<int,int>>(nz, pair<int,int>(nx, ny)));
-                    visited[nz][nx][ny] = true;
-                    Serial.println("queue added:"+nx+"y"+ny+","+nz);
-                    prev[nz][nx][ny] = pair<int, pair<int,int>>(z, pair<int,int>(x,y));
-                    Serial.println("at:"+nx+","+ny+","+nz+" added:"+x+","+y+","+z);
-                    
-                }
+            //add 3d floor change here
+              if (map[nz][nx][ny].getElevate()) {
+                  nz++;
+              }
+              else if (map[nz][nx][ny].getDescend()) {
+                  nz--;
+              }
+
+            
+              if (!visited[nz][nx][ny] && !map[nz][nx][ny].getWall(i)&&map[nz][nx][ny].getDiscovered()&&map[nz][nx][ny].getWall(opposite((Direction)i))&&
+                  map[nz][nx][ny].getType() != BLACK &&
+                  map[nz][nx][ny].getType() != STAIR&&map[nz][nx][ny].getType() != BLUE) {
+                  queue.push_back(pair<int, pair<int,int>>(nz, pair<int,int>(nx, ny)));
+                  visited[nz][nx][ny] = true;
+                  
+                  prev[nz][nx][ny] = pair<int, pair<int,int>>(z, pair<int,int>(x,y));
+                  
+                  
+              }
             }
         }
         queue.pop_front();

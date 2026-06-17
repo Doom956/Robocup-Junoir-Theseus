@@ -387,7 +387,7 @@ void loop(){
       break;
     }
     case RETURN: {
-      pair<int, pair<int, int>> currentpos = <currentFloor,<x_pos,y_pos>>
+      pair<int, pair<int, int>> currentpos = {currentFloor,{x_pos,y_pos}}
       pair<int, pair<int, int>> endpos = <1,<MAP_SIZE/2,MAP_SIZE/2>; // currentFloor initialized at 1.
       
       flashLED('H');
@@ -395,11 +395,11 @@ void loop(){
       Serial.println("starting bfs");
       deque<pair<int, pair<int,int>>> path = BFS(currentpos,m1,m2,m3,endpos);
       Serial.println("path calculated");
-      for(int i = path.size() - 1;i>0;i--){
+      for(int i = 0;i<path.size();i++){
         // convert the coordinate step into an absolute direction
         Direction moveDir;
         if(path[i-1].second.second - path[i].second.second == 0){ // no change in y
-          moveDir = (path[i-1].second.first - path[i].x == 1) ? EAST : WEST; // move in x direction
+          moveDir = (path[i-1].second.first - path[i].second.first == 1) ? EAST : WEST; // move in x direction
         }
         else{
           moveDir = (path[i-1].second.second - path[i].second.second == 1) ? NORTH : SOUTH;
