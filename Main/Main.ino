@@ -315,6 +315,10 @@ void loop(){
         parallel();
         delay(100);
 
+        if (turnCompletedSuccessfully(plannedMoveDir) == false) {
+          state = BOTCHED_TURN_RECOVERY;
+          break;
+        }
         currentDir = plannedMoveDir;
         turnCompletedForMove = true;
       }
@@ -366,6 +370,20 @@ void loop(){
       blacktoggle = false;
       if(Pausemaze == true) state = PAUSE;
       delay(500);
+      break;
+    }
+    case BOTCHED_TURN_RECOVERY: {
+      Direction snappedDir = (Direction)myGyro.headingToCardinal(myGyro.heading());
+      int snappedHeading = turnNeededDeg(snappedDir);
+      Serial.println("botched turn detected, snapping to cardinal");
+      absoluteturn(snappedHeading);
+      delay(150);
+      parallel();
+      delay(100);
+      currentDir = snappedDir;
+      plannedTurnDeg = turnNeededDeg(plannedMoveDir);
+      turnCompletedForMove = false;
+      state = EXECUTE_MOVE;
       break;
     }
     case RETURN: {
