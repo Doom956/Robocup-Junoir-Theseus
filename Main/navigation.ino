@@ -385,7 +385,7 @@ std::deque<std::pair<int, std::pair<int,int>>> BFS(std::pair<int, std::pair<int,
     std::array<std::array<std::array<Tile, MAP_SIZE>, MAP_SIZE>, 3> map = { m1, m2, m3 };
     queue.push_back(currentpos);
     visited[currentpos.first][currentpos.second.first][currentpos.second.second] = true;
-
+    bool isdesc = false;
     while (queue.size() > 0) {
         int x = queue[0].second.first; int y = queue[0].second.second; int z = queue[0].first;
 
@@ -395,7 +395,18 @@ std::deque<std::pair<int, std::pair<int,int>>> BFS(std::pair<int, std::pair<int,
             int nz = z;
 
             //add 3d movement here
-
+            if (map[nz][nx][ny].getElevate()) {
+                if(isdesc){
+                  nz--;
+                  isdesc = false;
+                }
+                else{
+                  nz++;
+                }
+            }
+            else if (map[nz][nx][ny].getDescend()) {
+                isdesc = true;
+            }
 
             if (nx < (int)rows && ny < (int)columns && nx >= 0 && ny >= 0) {
                 // floor change: check if the neighbor tile is a ramp entry
