@@ -2,8 +2,8 @@
 // clear serial buffers.
 
 void clearSerialBuffer1() {
-  while (Serial2.available() > 0) {
-    Serial2.read();  // Read and discard one byte from the buffer
+  while (Serial4.available() > 0) {
+    Serial4.read();  // Read and discard one byte from the buffer
   }
 }
 void clearSerialBuffer2() {
@@ -33,9 +33,9 @@ int readSerial1(){ // left
   char sample;
   int output;
   
-  if(Serial3.available()>0){
-    sample = Serial3.read();
-    
+  if(Serial4.available()>0){
+    sample = Serial4.read();
+    Serial.println(sample);
     if(sample == 'H'){
       output = 0;
     }
@@ -60,8 +60,8 @@ int readSerial2(){ //right
   char sample;
   int output;
   
-  if(Serial2.available()>0){
-    sample = Serial2.read();
+  if(Serial3.available()>0){
+    sample = Serial3.read();
     Serial.println(sample);
     if(sample == 'H'){
       output = 0;
@@ -84,7 +84,7 @@ int readSerial2(){ //right
     return -1;
   }
 }
-void detectCam1(){ // doesn't return anything.
+void detectCam1(){ // left camera serial2
    // read buffer
   // if there is content, take 5 samples and take the most common letter.
   int samples[5];
@@ -118,7 +118,7 @@ void detectCam1(){ // doesn't return anything.
       res = classes[i];
     }
   }
-  flashLED(res);
+  //flashLED(res);
   disp.dispenseLeft(res);
   return;
 }
@@ -156,7 +156,7 @@ void detectCam2(){
       res = classes[i];
     }
   }
-  flashLED(res);
+  //flashLED(res);
   disp.dispenseRight(res);
   return;
 }

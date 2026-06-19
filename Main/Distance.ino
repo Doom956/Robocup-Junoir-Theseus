@@ -148,59 +148,18 @@ int measure(int sensor){
 old robot settings
 */
 int measure(int sensor){
-  
-  if(sensor ==1){
-    myMux.setPort(1);
-    int value = sensors[1].readRangeContinuousMillimeters();
-    
-    if (value != -1 && value != 8191) { return value;}
-    else { return -1;}
-      
-  }
-  if(sensor == 2){
-    myMux.setPort(0);
-    int value = sensors[0].readRangeContinuousMillimeters();
-    if (value != -1 && value != 8191) { return value;}
-    else { return -1;}
-      
-  }
-  if(sensor==3){
-    myMux.setPort(6);
-    int value = sensors[6].readRangeContinuousMillimeters();
-    if (value != -1 && value != 8191) { return value;}
-    else { return -1;}
-    
-  }
-  if(sensor==4){
-    myMux.setPort(4);
-    int value = sensors[4].readRangeContinuousMillimeters();
-    if (value != -1 && value != 8191) { return value;}
-    else { return -1;}
-    
-  }
-  if(sensor==5){
-    myMux.setPort(5);
-    int value = sensors[5].readRangeContinuousMillimeters();
-    if (value != -1 && value != 8191) { return value;}
-    else { return -1;}
-    
-  }
-  if(sensor==6){
-    myMux.setPort(3);
-    int value = sensors[3].readRangeContinuousMillimeters();
-    if (value != -1 && value != 8191) { return value;}
-    else { return -1;}
-    
-  }
-  if(sensor==7){
-    myMux.setPort(2);
-    int value = sensors[2].readRangeContinuousMillimeters();
-    if (value != -1 && value != 8191) { return value;}
-    else { return -1;}
-    
-  }
+  // sensor→mux port mapping
+  const int portMap[] = {-1, 1, 0, 6, 4, 5, 3, 2};
+  if(sensor < 1 || sensor > 7) return -1;
+  int port = portMap[sensor];
+  int sensorIdx = port; // sensor index matches port number
 
-  return -1;
+  i2cMutex.lock();
+  myMux.setPort(port);
+  int value = sensors[sensorIdx].readRangeContinuousMillimeters();
+  i2cMutex.unlock();
+
+  return (value != -1 && value != 8191) ? value : -1;
 }
 // detects wall in a direction( 0 is north, 1 is east, etc..) If output = 0, there is a wall.
 // realtive directions(local).
@@ -312,11 +271,11 @@ void parallel(){
     }
 
     // Reset wheel directions then apply correction turn.
+    i2cMutex.lock();
     motorA->run(FORWARD);
     motorB->run(FORWARD);
     motorC->run(FORWARD);
     motorD->run(FORWARD);
-
     if ((diff > 0 && wallDir == 1)||(diff < 0 && wallDir==3)) {
       motorB->run(BACKWARD);
       motorD->run(BACKWARD);
@@ -324,16 +283,17 @@ void parallel(){
       motorA->run(BACKWARD);
       motorC->run(BACKWARD);
     }
+    i2cMutex.unlock();
     drivetrain.drive(PARALLEL_SPEED,PARALLEL_SPEED,PARALLEL_SPEED,PARALLEL_SPEED);
     
   }
-  drivetrain.reset_encoderCount(true,true);
+  drivetrain.reset_encoderCount(true,true,true);
   drivetrain.fullstop();
 }
 int center(){
   int a = measure(2);
   int b = measure(6);
-  if(a<MIN_DIST && a != -1 && b<MIN_DIST && b != -1) return (measure(2)-measure(6));
+  if(a<MIN_DIST && a != -1 && b<MIN_DIST && b != -1) return (a-b);
   else return 0;
 }
 
@@ -449,7 +409,7 @@ void obstacleavoidance(int leftright){ // leftright determines to manuver left o
         
         Serial.println("fwd step");
         parallel();
-        drivetrain.reset_encoderCount(true,true);
+        drivetrain.reset_encoderCount(true,true,true);
         delay(200);
         fwd(300);
         return;
