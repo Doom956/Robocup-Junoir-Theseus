@@ -1,6 +1,13 @@
 // camera communication code
 // clear serial buffers.
 
+void lcdPrint(const char* msg) {
+  lcd.setCursor(0, 0);
+  lcd.print("                ");
+  lcd.setCursor(0, 0);
+  lcd.print(msg);
+}
+
 void clearSerialBuffer1() {
   while (Serial4.available() > 0) {
     Serial4.read();  // Read and discard one byte from the buffer
@@ -118,7 +125,10 @@ void detectCam1(){ // left camera serial2
       res = classes[i];
     }
   }
-  //flashLED(res);
+  
+  char msg[17]; snprintf(msg, sizeof(msg), "victim: %c", res);
+  lcdPrint(msg);
+  delay(1000);
   disp.dispenseLeft(res);
   return;
 }
@@ -156,7 +166,9 @@ void detectCam2(){
       res = classes[i];
     }
   }
-  //flashLED(res);
+  char msg[17]; snprintf(msg, sizeof(msg), "victim: %c", res);
+  lcdPrint(msg);
+  delay(1000);
   disp.dispenseRight(res);
   return;
 }

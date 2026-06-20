@@ -183,7 +183,7 @@ void absoluteturn(double angle){
       
       MOTORSPEED = myPID.getPID(myGyro.inverse(angle,fasterway)-current_angle);
       
-      drivetrain.turnright(constrain(MOTORSPEED,20,150));
+      drivetrain.turnright(constrain(MOTORSPEED,20,100));
     }
   }
 
@@ -204,7 +204,7 @@ void absoluteturn(double angle){
       current_angle = myGyro.inverse(myGyro.heading(),fasterway);
       MOTORSPEED = myPID.getPID(current_angle-myGyro.inverse(angle,fasterway));
       
-      drivetrain.turnleft(constrain(MOTORSPEED,20,150));
+      drivetrain.turnleft(constrain(MOTORSPEED,20,100));
     }
   }
   

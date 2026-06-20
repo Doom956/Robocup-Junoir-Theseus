@@ -11,6 +11,7 @@
 #include <utility/imumaths.h>
 
 #include <Stepper.h>
+#include <LiquidCrystal.h> // lcd screen
 #include <array> // std::array (Grid type for multi-floor maps)
 #include <deque>
 #include <vector>
@@ -61,7 +62,7 @@ const int encoderPin_B_A = 2;
 const int encoderPin_B_B = 4; 
 const int encoderPin_D_A = 18;
 const int encoderPin_D_B = 19;
-// encoder counters
+
 
 //drivetrain class object
 motors drivetrain(encoderPin_A_A,encoderPin_A_B,encoderPin_B_A,encoderPin_B_B,encoderPin_D_A,encoderPin_D_B);
@@ -78,6 +79,9 @@ char classes[6] = {'H','S','U','R','Y','G'};
 // create stepper object
 const int steps_per_revolution = 2048;
 Stepper myStepper = Stepper(steps_per_revolution, 8, 9,10,11); 
+// create lcd object
+int EN = 25; int RS = 27; int D4 = 23; int D5 = 53; int D6 = 29; int D7 = 31;
+LiquidCrystal lcd(RS, EN, D4, D5, D6, D7);
 // map grids (MAP_SIZE and the Grid type are defined in MazeTile.h)
 Grid mapGrid; // active floor's tiles
 Grid m1;      // floor storage ("basement"/floor 1)
@@ -180,11 +184,13 @@ void cameraTask(){
     if(motionActive && !victimPending && !isVictim){
       if(mapGrid[x_pos][y_pos].getVictim() == false){
         if(readSerial1() != -1){        // left camera (Serial4)
-          Serial.println("victim at left");
+          
           i2cMutex.lock();
           victimSide = 1;
           victimPending = true;
           drivetrain.fullstop();
+          lcdPrint("victim at left");
+          delay(1000);
           serviceCameraVictim();
           i2cMutex.unlock();
         }
@@ -194,6 +200,8 @@ void cameraTask(){
           victimSide = 2;
           victimPending = true;
           drivetrain.fullstop();
+          lcdPrint("victim at right");
+          delay(1000);
           serviceCameraVictim();
           i2cMutex.unlock();
         }
@@ -271,7 +279,8 @@ void setup(){
   mapGrid[x_pos][y_pos].setDiscovered(true);
   currentDir = NORTH;
   state = SENSE_TILE;
-
+  // start lcd
+  lcd.begin(16, 2);
   // start RTOS threads: camera victim detection + pause-switch watcher.
   cameraThread.start(cameraTask);
   pauseThread.start(pauseTask);
@@ -429,7 +438,8 @@ void loop(){
       std::pair<int, std::pair<int, int>> currentpos = {currentFloor - 1, {x_pos, y_pos}};
       std::pair<int, std::pair<int, int>> endpos     = {0, {MAP_SIZE/2, MAP_SIZE/2}};
 
-      
+      lcdPrint("starting bfs");
+      delay(1000);
       Serial.println("starting bfs");
       std::deque<std::pair<int, std::pair<int,int>>> path = BFS(currentpos, m1, m2, m3, endpos, false);
       if(path.empty()){
