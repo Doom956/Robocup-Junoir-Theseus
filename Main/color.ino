@@ -26,12 +26,15 @@ void init_color(){
   
 }
 int read_color(){
-  myMux.setPort(TCS_PORT);          
+  i2cMutex.lock();
+  myMux.setPort(TCS_PORT);
   tcs.setInterrupt(true);  // turn on LED
   float red, green, blue;
   uint16_t r, g, b, c, colorTemp, lux;
 
   tcs.getRawData(&r, &g, &b, &c);
+  i2cMutex.unlock();
+  /*
   Serial.print(r);
   Serial.print(" ");
   Serial.print(g);
@@ -39,6 +42,7 @@ int read_color(){
   Serial.print(b);
   Serial.print(" ");
   Serial.println(c/clear);
+  */
   if((float)c/clear<BLACK_THRESHOLD){
     
     

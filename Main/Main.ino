@@ -28,6 +28,7 @@
 #define BLACK_THRESHOLD 0.1 // color clear-channel threshold ratio for black
 #define SILVER_THRESHOLD 1.2f // ratio threshold — calibrate on real silver tile (typical normal~0.8, silver~2.0+)
 #define WHITE_THRESHOLD 0.9f
+#define MULTIPLER 1.1 
 float clear; 
 
 #include "MazeTile.h"
@@ -58,10 +59,12 @@ const int encoderPin_A_A = 3;
 const int encoderPin_A_B = 5; 
 const int encoderPin_B_A = 2;
 const int encoderPin_B_B = 4; 
+const int encoderPin_D_A = 18;
+const int encoderPin_D_B = 19;
 // encoder counters
 
 //drivetrain class object
-motors drivetrain(encoderPin_A_A,encoderPin_A_B,encoderPin_B_A,encoderPin_B_B);
+motors drivetrain(encoderPin_A_A,encoderPin_A_B,encoderPin_B_A,encoderPin_B_B,encoderPin_D_A,encoderPin_D_B);
 // wheel cpr
 const double wheel_cpr = 5; // 20/4
 //gear ratio
@@ -141,13 +144,13 @@ const int angle_offset = 44;
 const int angle_increment = 22;
 dispenser disp(angle_increment,angle_offset,steps_per_revolution);
 // logic switch pin
-const int logicswitch = 31;
+const int logicswitch = 22;
 volatile bool Pausemaze = false; // set by pauseThread, read by loop()
 int x_checkpoint, y_checkpoint;
 bool tilecheck = false;
 
-// Forward declaration: Arduino can't auto-prototype template return types
-//std::deque<std::pair<int, std::pair<int,int>>> BFS(std::pair<int, std::pair<int,int>> currentpos, Grid& m1, Grid& m2, Grid& m3, std::pair<int, std::pair<int,int>> endpos, bool allowStairsAndBlue = false);
+// Forward declaration: Arduino can't auto-prototype template return types.
+std::deque<std::pair<int, std::pair<int,int>>> BFS(std::pair<int, std::pair<int,int>> currentpos, Grid& m1, Grid& m2, Grid& m3, std::pair<int, std::pair<int,int>> endpos, bool allowStairsAndBlue);
 
 double headingErrorDeg(double targetDeg, double actualDeg) {
   double err = targetDeg - actualDeg;
@@ -169,21 +172,35 @@ volatile int  victimSide = 0;        // 1 = left (Serial3), 2 = right (Serial2)
 volatile bool isVictim = false;      // a victim already handled during current move
 
 rtos::Thread cameraThread;
+rtos::Mutex i2cMutex;
 void cameraTask(){
   while(true){
-    
+
+
     if(motionActive && !victimPending && !isVictim){
       if(mapGrid[x_pos][y_pos].getVictim() == false){
-        if(readSerial1() != -1){        // left camera (Serial3)
+        if(readSerial1() != -1){        // left camera (Serial4)
+          Serial.println("victim at left");
+          i2cMutex.lock();
           victimSide = 1;
           victimPending = true;
+          drivetrain.fullstop();
+          serviceCameraVictim();
+          i2cMutex.unlock();
         }
-        else if(readSerial2() != -1){   // right camera (Serial2)
+        else if(readSerial2() != -1){   // right camera (Serial3)
+          Serial.println("victim at right");
+          i2cMutex.lock();
           victimSide = 2;
           victimPending = true;
+          drivetrain.fullstop();
+          serviceCameraVictim();
+          i2cMutex.unlock();
         }
       }
     }
+
+
     rtos::ThisThread::sleep_for(std::chrono::milliseconds(10));
   }
 }
@@ -192,7 +209,15 @@ void cameraTask(){
 rtos::Thread pauseThread;
 void pauseTask(){
   while(true){
-    if(digitalRead(logicswitch)==true) Pausemaze = true;
+    
+    if(digitalRead(logicswitch)==HIGH){
+      
+      Pausemaze = true;
+    }
+    else{
+      
+      Pausemaze = false;
+    }
     rtos::ThisThread::sleep_for(std::chrono::milliseconds(10));
   }
 }
@@ -222,8 +247,8 @@ void setup(){
   pinMode(logicswitch, INPUT);
   // begin UART communication.
   Serial.begin(115200);
-  Serial2.begin(115200); // switch to 9600 for reliability
-  Serial3.begin(115200);
+  Serial3.begin(115200); // switch to 9600 for reliability
+  Serial4.begin(115200);
   //flashLED('S');
   
   Wire.begin();
@@ -252,17 +277,15 @@ void setup(){
   pauseThread.start(pauseTask);
 
   delay(2000); // wait for camera to start.
+  //fwd(300);
   
 }
 int iterator = 0;
+
 void loop(){
-  for(int i = 0;i<=7;i++){
-    Serial.print(i + " ");
-    Serial.println(measure(i));
-    delay(300);
-  }
-  //Serial.println(measure(7));
-  /*
+  //absoluteturn(90);
+  
+  
   static bool wallF, wallR, wallB, wallL;
   switch (state) {
     case SENSE_TILE: {
@@ -272,7 +295,7 @@ void loop(){
       readWallsRel(wallF, wallR, wallB, wallL);
       delay(500);
       state = UPDATE_MAP; // next state.
-      if(Pausemaze == true) state = PAUSE;
+      if(Pausemaze == true) state = PAUSE; 
       break;
     }
     case UPDATE_MAP: {
@@ -287,6 +310,7 @@ void loop(){
       // == false) and this is the only context touching the camera UARTs.
       // Poll both cameras; RCJ victims are wall-mounted, so a wall must be
       // present on that side before we identify/dispense.
+      /*
       Tile &t = mapGrid[x_pos][y_pos];
       if(t.getVictim() == false){
         if(readSerial1() != -1 && detectWall(3) == 0){       // left camera (Serial3)
@@ -306,6 +330,7 @@ void loop(){
         victimtoggle = false;
       }
       delay(100);
+      */
       state = PLAN_NEXT;
       if(Pausemaze == true) state = PAUSE;
       break;
@@ -404,8 +429,7 @@ void loop(){
       std::pair<int, std::pair<int, int>> currentpos = {currentFloor - 1, {x_pos, y_pos}};
       std::pair<int, std::pair<int, int>> endpos     = {0, {MAP_SIZE/2, MAP_SIZE/2}};
 
-      flashLED('H');
-      flashLED('U');
+      
       Serial.println("starting bfs");
       std::deque<std::pair<int, std::pair<int,int>>> path = BFS(currentpos, m1, m2, m3, endpos, false);
       if(path.empty()){
@@ -438,7 +462,7 @@ void loop(){
         if(dz > 0) currentFloor++;
         else if(dz < 0) currentFloor--;
       }
-      flashLED('H');
+      
       while(true){
         drivetrain.fullstop();
       }
@@ -457,5 +481,5 @@ void loop(){
       break;
     }
  }
- */
+ 
 }
