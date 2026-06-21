@@ -19,14 +19,15 @@ void fwd(double dist){ // in mm
   Tile &t = mapGrid[x_pos][y_pos]; // tile object to update
   double init_heading = myGyro.heading();
   PID myPID(0.30,0,0.2); // pid for centering
-  PID gyroPID(1.8,0,0.1);
+  PID gyroPID(3,0,0.1);
   PID Scale_PID(0.006,0,0.0008); // pid for encoder 0.0008
   Serial.println("forwarding");
   // allow the camera RTOS thread to flag victims for this move
   motionActive = true;
   isVictim = false;
   victimPending = false;
-  int init_yaw = myGyro.modulus((int)myGyro.yaw_heading());
+  int init_pitch = myGyro.modulus((int)myGyro.pitch_heading());
+  int init_yaw = myGyro.heading();
   int front_left_current=measure(7); int front_right_current=measure(1);
   int front_left_last=measure(7); int front_right_last=measure(1);
   timer myTime;
@@ -37,11 +38,14 @@ void fwd(double dist){ // in mm
     // Service a camera victim flagged by the RTOS thread: stop, pause PID +
     // timer, identify + dispense, then resume. (claude version 6/16/2026)
     if(victimPending){
+      myPID.pausePID(1);
+      gyroPID.pausePID(1);
+      Scale_PID.pausePID(1);
+      myTime.pause(1);
       while(victimPending == true){
-        myPID.pausePID(1);
-        Scale_PID.pausePID(1);
-        myTime.pause(1);
+        rtos::ThisThread::sleep_for(std::chrono::milliseconds(1));
       }
+      gyroPID.pausePID(2);
       myPID.pausePID(2);
       Scale_PID.pausePID(2);
       myTime.pause(2);
@@ -66,10 +70,15 @@ void fwd(double dist){ // in mm
       black = true;
     }
     // PID centering
-    difference = center();
+    //difference = center();
     
     //Serial.println(center());
-    double adjustment = myPID.getPID(difference);
+    //double adjustment = myPID.getPID(difference);
+    double yaw = myGyro.heading()-init_yaw;
+    if(yaw>180) yaw = yaw-360;
+    if(yaw<-180) yaw+= 360;
+    
+    double adjustment = gyroPID.getPID(yaw);
     double Scale = Scale_PID.getPID(pulses-(drivetrain.encoderCountA+drivetrain.encoderCountB+drivetrain.encoderCountD)/3);
     
     // emergency stop
@@ -84,30 +93,29 @@ void fwd(double dist){ // in mm
       break;
     }
     
-    // check yaw heading
-    // if it is greater than 25, the robot is going up a slope, so the encoder is turned off.
-    
-     if(abs(myGyro.modulus(myGyro.yaw_heading())-init_yaw) > 20){
+    // check pitch: if it is greater than 25, the robot is going up a slope, so the encoder is turned off.
+
+     if(abs(myGyro.modulus(myGyro.pitch_heading())-init_pitch) > 20){
       Serial.println("climbing");
       int _encoderCountA = drivetrain.encoderCountA; // save values before ramp
       int _encoderCountB = drivetrain.encoderCountB;
       int _encoderCountD = drivetrain.encoderCountD;
       climbtoggle = true; // prevent outer loop from exiting on encoder count
-      Serial.println(abs(myGyro.modulus(myGyro.yaw_heading())-init_yaw));
-      if(myGyro.modulus(myGyro.yaw_heading())-init_yaw>20) upwards = true; // distinguish between moving up and moving down.
+      Serial.println(abs(myGyro.modulus(myGyro.pitch_heading())-init_pitch));
+      if(myGyro.modulus(myGyro.pitch_heading())-init_pitch>20) upwards = true; // distinguish between moving up and moving down.
       //drivetrain.reset_encoderCount(true,true,true);
-      while(abs(myGyro.modulus(myGyro.yaw_heading())-init_yaw) > 20){
+      while(abs(myGyro.modulus(myGyro.pitch_heading())-init_pitch) > 20){
         // PID centering
         double yaw = myGyro.heading();
         if(yaw>180) yaw = yaw-360;
         //Serial.println(center());
         double adjustment = gyroPID.getPID(yaw);
         Serial.println("climbing");
-        Serial.println(abs(myGyro.modulus(myGyro.yaw_heading())-init_yaw));
+        Serial.println(abs(myGyro.modulus(myGyro.pitch_heading())-init_pitch));
         // center during climbing
         drivetrain.drive(150-adjustment,150-adjustment,150+adjustment,150+adjustment);
         //Serial.println((drivetrain.encoderCountD+drivetrain.encoderCountA+drivetrain.encoderCountB)/3);
-        if((drivetrain.encoderCountD+drivetrain.encoderCountA+drivetrain.encoderCountB)/3 >= pulses/cos(abs(myGyro.modulus(myGyro.yaw_heading())-init_yaw)*(M_PI/180))){
+        if((drivetrain.encoderCountD+drivetrain.encoderCountA+drivetrain.encoderCountB)/3 >= pulses/cos(abs(myGyro.modulus(myGyro.pitch_heading())-init_pitch)*(M_PI/180))){
           Serial.println("1 section of the ramp climbed");
           cnt++;
           drivetrain.reset_encoderCount(true,true,true);
@@ -178,9 +186,11 @@ void absoluteturn(double angle){
   if(myGyro.inverse(angle,fasterway) - current_angle > 0){
     while(true){
       if(Pausemaze==true) {drivetrain.fullstop(); break;}
-      if(victimPending){ // service camera victim mid-turn (claude version 6/16/2026)
+      if(victimPending){ // service camera victim mid-turn 
         myPID.pausePID(1); myTimer.pause(1);
-        serviceCameraVictim();
+        while(victimPending==true){
+          rtos::ThisThread::sleep_for(std::chrono::milliseconds(1))
+        }
         myPID.pausePID(2); myTimer.pause(2);
       }
       i2cMutex.lock();
@@ -203,7 +213,9 @@ void absoluteturn(double angle){
       if(Pausemaze==true) {drivetrain.fullstop(); break;}
       if(victimPending){ // service camera victim mid-turn (claude version 6/16/2026)
         myPID.pausePID(1); myTimer.pause(1);
-        serviceCameraVictim();
+        while(victimPending==true){
+          rtos::ThisThread::sleep_for(std::chrono::milliseconds(1));
+        }
         myPID.pausePID(2); myTimer.pause(2);
       }
       i2cMutex.lock();

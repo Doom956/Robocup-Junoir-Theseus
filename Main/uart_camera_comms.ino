@@ -2,6 +2,7 @@
 // clear serial buffers.
 
 void lcdPrint(const char* msg) {
+  lcdMutex.lock();
   lcd.setCursor(0, 0);
   lcd.print("                ");
   lcd.print("                ");
@@ -12,6 +13,7 @@ void lcdPrint(const char* msg) {
   lcd.print("                ");
   lcd.print("                ");
   lcd.setCursor(0, 0);
+  lcdMutex.unlock();
 }
 
 void clearSerialBuffer1() {
@@ -24,80 +26,35 @@ void clearSerialBuffer2() {
     Serial3.read();  // Read and discard one byte from the buffer
   }
 }
-// led
-void flashLED(char victimState){
-  if(victimState == 'H'){
-    digitalWrite(pinHarmed,HIGH);
-    delay(1000);
-  }
-  else if(victimState == 'S'){
-    digitalWrite(pinStable,HIGH);
-    delay(1000);
-  }
-  else{
-    digitalWrite(pinUnharmed,HIGH);
-    delay(1000);
-  }
-  digitalWrite(pinHarmed,LOW);
-  digitalWrite(pinStable,LOW);
-  digitalWrite(pinUnharmed,LOW);
+
+// classify a single camera byte: H/S/U = victim (0/1/2),
+// L/c/I = camera "searching"/circle signal (-2), anything else -2.
+int classifyCamByte(char sample){
+  if(sample == 'H') return 0;
+  if(sample == 'S') return 1;
+  if(sample == 'U') return 2;
+  return -2; // L / c / I / stray byte -> not a lettered victim
 }
 int readSerial1(){ // left
-  char sample;
-  int output;
-  
-  if(Serial4.available()>0){
+  // The camera streams continuously, so the RX FIFO backs up while we move.
+  // Drain everything and keep only the NEWEST byte so we react to what the
+  // camera sees now, not a byte from several frames (and tiles) ago.
+  if(Serial4.available() <= 0) return -1; // nothing right now
+  char sample = 0;
+  while(Serial4.available() > 0){
     sample = Serial4.read();
-    Serial.println(sample);
-    if(sample == 'H'){
-      output = 0;
-    }
-    else if(sample == 'S'){
-      output = 1;
-    }
-    else if(sample == 'U'){
-      output = 2;
-    }
-    else if(sample == 'L'||sample == 'c'||sample == 'I'){
-      output = -2;
-    }
-    return output; // output inside or it keeps outputting
   }
-  else{
-    // nothing right now
-    return -1;
-  }
-  
+  return classifyCamByte(sample);
 }
 int readSerial2(){ //right
-  char sample;
-  int output;
-  
-  if(Serial3.available()>0){
+  if(Serial3.available() <= 0) return -1; // nothing right now
+  char sample = 0;
+  while(Serial3.available() > 0){
     sample = Serial3.read();
-    Serial.println(sample);
-    if(sample == 'H'){
-      output = 0;
-    }
-    else if(sample == 'S'){
-      output = 1;
-    }
-    else if(sample == 'U'){
-      output = 2;
-    }
-    else if(sample == 'L'||sample == 'c'|| sample == 'I'){
-      output = -2;
-    }
-    
-    return output; // output inside or it keeps outputting
-    
   }
-  else{
-    // nothing right now
-    return -1;
-  }
+  return classifyCamByte(sample);
 }
-void detectCam1(){ // left camera serial2
+void detectCam1(){ // left camera serial4
    // read buffer
   // if there is content, take 5 samples and take the most common letter.
   int samples[5];

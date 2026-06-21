@@ -137,10 +137,6 @@ bool stairtoggle = false;
 // victim toggles
 bool victimtoggle = false;
 bool victimAtCurrent = false;
-// LED pins
-const int pinHarmed = 41;
-const int pinStable = 37;
-const int pinUnharmed = 29;
 // camera GPIOs
 const int gpio1 = 13;
 const int gpio2 = 12;
@@ -151,7 +147,7 @@ dispenser disp(angle_increment,angle_offset,steps_per_revolution);
 // logic switch pin
 const int logicswitch = 22;
 volatile bool Pausemaze = false; // set by pauseThread, read by loop()
-int x_checkpoint, y_checkpoint;
+int x_checkpoint = MAP_SIZE/2, y_checkpoint = MAP_SIZE/2;
 bool tilecheck = false;
 
 // Forward declaration: Arduino can't auto-prototype template return types.
@@ -178,6 +174,7 @@ volatile bool isVictim = false;      // a victim already handled during current 
 
 rtos::Thread cameraThread;
 rtos::Mutex i2cMutex;
+rtos::Mutex lcdMutex; // lcd mutex to prevent conflict
 void cameraTask(){
   while(true){
 
@@ -188,19 +185,16 @@ void cameraTask(){
           
           i2cMutex.lock();
           victimSide = 1;
-          victimPending = true;
           drivetrain.fullstop();
-          //lcdPrint("victim at left");
+          victimPending = true;
           serviceCameraVictim();
           i2cMutex.unlock();
         }
         else if(readSerial2() != -1){   // right camera (Serial3)
-          Serial.println("victim at right");
           i2cMutex.lock();
           victimSide = 2;
-          victimPending = true;
           drivetrain.fullstop();
-          //lcdPrint("victim at right");
+          victimPending = true;
           serviceCameraVictim();
           i2cMutex.unlock();
         }
@@ -208,7 +202,7 @@ void cameraTask(){
     }
 
 
-    rtos::ThisThread::sleep_for(std::chrono::milliseconds(10));
+    rtos::ThisThread::sleep_for(std::chrono::milliseconds(5));
   }
 }
 
@@ -243,10 +237,6 @@ bool turnCompletedSuccessfully(Direction intendedDir) {
   return err <= TURN_SUCCESS_TOLERANCE_DEG;
 }
 void setup(){
-  // initialize LED puns
-  pinMode(pinHarmed,OUTPUT);
-  pinMode(pinStable,OUTPUT);
-  pinMode(pinUnharmed,OUTPUT);
   // initialize camera gpio pins
   pinMode(gpio1, INPUT);
   pinMode(gpio2, INPUT);
@@ -256,7 +246,7 @@ void setup(){
   Serial.begin(115200);
   Serial3.begin(115200); // switch to 9600 for reliability
   Serial4.begin(115200);
-  //flashLED('S');
+  
   
   Wire.begin();
   disableAllCall();
@@ -282,19 +272,20 @@ void setup(){
   lcd.begin(16, 2);
   // start RTOS threads: camera victim detection + pause-switch watcher.
   cameraThread.start(cameraTask);
+  cameraThread.set_priority(osPriorityAboveNormal);
   pauseThread.start(pauseTask);
 
   delay(2000); // wait for camera to start.
-  //fwd(300);
-
+  absoluteturn(90);
+  //absoluteturn(90);//disp.dispenseLeft('H');
   
 }
 int iterator = 0;
 
 void loop(){
   //absoluteturn(90);
-  
-  
+  //detectCam1();
+  /*
   static bool wallF, wallR, wallB, wallL;
   switch (state) {
     case SENSE_TILE: {
@@ -319,7 +310,7 @@ void loop(){
       // == false) and this is the only context touching the camera UARTs.
       // Poll both cameras; RCJ victims are wall-mounted, so a wall must be
       // present on that side before we identify/dispense.
-      /*
+      
       Tile &t = mapGrid[x_pos][y_pos];
       if(t.getVictim() == false){
         if(readSerial1() != -1 && detectWall(3) == 0){       // left camera (Serial3)
@@ -339,7 +330,7 @@ void loop(){
         victimtoggle = false;
       }
       delay(100);
-      */
+      
       state = PLAN_NEXT;
       if(Pausemaze == true) state = PAUSE;
       break;
@@ -499,6 +490,6 @@ void loop(){
       break;
     }
  }
- 
+ */
  
 }

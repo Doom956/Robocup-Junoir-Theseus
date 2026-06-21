@@ -42,14 +42,14 @@ double gyro::heading(){
   if (abs(360-heading)< 5||abs(heading)<5) heading = 0; // wraparound
   return heading;
 }
-double gyro::yaw_heading(){
+double gyro::pitch_heading(){
   sensors_event_t event;
   i2cMutex.lock();
   bno.getEvent(&event);
   i2cMutex.unlock();
-  float yaw_heading = (double)event.orientation.z;
-  if (abs(360-yaw_heading)< 5||abs(yaw_heading)<5) yaw_heading = 0;
-  return yaw_heading;
+  float pitch_heading = (double)event.orientation.z;
+  if (abs(360-pitch_heading)< 5||abs(pitch_heading)<5) pitch_heading = 0;
+  return pitch_heading;
 }
 void gyro::reset_accel_filter(){
   accelFilterInitialized = false;
