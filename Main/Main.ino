@@ -82,14 +82,17 @@ Stepper myStepper = Stepper(steps_per_revolution, 8, 9,10,11);
 // create lcd object
 int en = 25; int rs = 27; int d4 = 23; int d5 = 53; int d6 = 29; int d7 = 31;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
-// map grids (MAP_SIZE and the Grid type are defined in MazeTile.h)
+// map grids 
+// MAP_SIZE and grid are defined here
+const int MAP_SIZE = 20;
+using Grid = std::array<std::array<Tile, MAP_SIZE>, MAP_SIZE>;
 Grid mapGrid; // active floor's tiles
 Grid m1;      // floor storage ("basement"/floor 0)
 Grid m2;      // floor 1
 Grid m3;      // floor 2
 
 int currentFloor = 0; // current floor (0..2) for elevation()/descend()
-// queue
+
 
 
 //states that the robot will be in
@@ -151,7 +154,7 @@ int x_checkpoint = MAP_SIZE/2, y_checkpoint = MAP_SIZE/2;
 bool tilecheck = false;
 
 // Forward declaration: Arduino can't auto-prototype template return types.
-std::deque<std::pair<int, std::pair<int,int>>> BFS(std::pair<int, std::pair<int,int>> currentpos, Grid& m1, Grid& m2, Grid& m3, std::pair<int, std::pair<int,int>> endpos, bool allowStairsAndBlue);
+std::deque<std::pair<int, std::pair<int,int>>> BFS(std::pair<int, std::pair<int,int>> currentpos, Grid& m1, Grid& m2, Grid& m3, std::pair<int, std::pair<int,int>> endpos, bool allowBlue);
 
 double headingErrorDeg(double targetDeg, double actualDeg) {
   double err = targetDeg - actualDeg;

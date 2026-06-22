@@ -15,9 +15,7 @@ enum TileTypes {
   BLANK = 0,
   BLUE  = 1,
   CHECKPOINT =2,
-  BLACK = 3,
-  STAIR = 4
-
+  BLACK = 3
 };
 
 struct Tile {
@@ -112,7 +110,7 @@ Direction opposite(Direction d);
 // Map dimensions and the multi-floor grid type. Declared here (rather than in
 // Main.ino) so the Grid type is visible to Arduino's auto-generated function
 // prototypes regardless of .ino concatenation order. (claude version 6/16/2026)
-const int MAP_SIZE = 20;
-using Grid = std::array<std::array<Tile, MAP_SIZE>, MAP_SIZE>;
+
+
 
 #endif

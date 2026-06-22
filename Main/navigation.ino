@@ -82,6 +82,7 @@ void markEdgeBothWays(int x, int y, Direction d) {
 }
 
 // update fullyExplored = all OPEN dirs have been traveled at least once
+// necessary for picknextdirection.
 void updateFullyExploredAt(int x, int y) {
   Tile &t = mapGrid[x][y];
   bool allDone = true;
@@ -111,7 +112,7 @@ void readWallsRel(bool &wallF, bool &wallR, bool &wallB, bool &wallL) { // refer
 // absF is the absolute heading the the robot front is heading.
 void writeWallsToCurrentTile(bool wallF, bool wallR, bool wallB, bool wallL) {
   Tile &t = mapGrid[x_pos][y_pos];
-  t.setDiscovered(true);
+  t.setDiscovered(true); // tile is discovered(walls are found)
   // shouldn't absolute directions be north south east west?
   Direction absF = currentDir;
   Direction absR = rotateDir(currentDir, +1);
@@ -166,7 +167,7 @@ Direction pickNextDirection() {
     int nx = x_pos, ny = y_pos;
     Direction d = priority[i];
     stepForward(d,nx,ny);
-    if (inBounds(nx, ny) && open(d) && !isBlackTile(nx,ny) && mapGrid[nx][ny].getType() != STAIR) return d;
+    if (inBounds(nx, ny) && open(d) && !isBlackTile(nx,ny)) return d;
   }
 
   // figure out BFS later
@@ -292,6 +293,9 @@ void elevation(Grid& mapgrid, int xpos, int ypos, Grid& m1, Grid& m2, Grid& m3, 
     mapgrid = m3;
   }
   mapgrid[xpos][ypos].setDescend(true); // bidirection elevate/descend
+  markEdgeBothWays(x_pos, y_pos, currentDir);
+  writeWallsToCurrentTile(0, 1, 0, 1);
+  updateFullyExploredAt(x_pos, y_pos);
   floor++;
 }
 
@@ -305,15 +309,18 @@ void descend(Grid& mapgrid, int xpos, int ypos, Grid& m1, Grid& m2, Grid& m3, in
     mapgrid = m1;
     floor++;
   }
-  if(floor == 1){
+  else if(floor == 1){
     m2 = mapgrid;
     mapgrid = m1;
   }
-  if(floor == 2){
+  else if(floor == 2){
     m3 = mapgrid;
     mapgrid = m2;
   }
   mapgrid[xpos][ypos].setElevate(true);
+  markEdgeBothWays(x_pos, y_pos, currentDir);
+  writeWallsToCurrentTile(0, 1, 0, 1);
+  updateFullyExploredAt(x_pos, y_pos);
   floor--;
 }
 
@@ -341,8 +348,7 @@ int BFS(coord currentpos, Grid& mapGrid, coord endpos, coord path[MAP_SIZE * MAP
                     !mapGrid[x][y].getWall((Direction)i) &&
                     !mapGrid[nx][ny].getWall(opposite((Direction)i)) &&
                     mapGrid[nx][ny].getDiscovered() &&
-                    mapGrid[nx][ny].getType() != BLACK &&
-                    mapGrid[nx][ny].getType() != STAIR) { //IMPORTANT: ADD MORE CONDITIONALS HERE
+                    mapGrid[nx][ny].getType() != BLACK) { //IMPORTANT: ADD MORE CONDITIONALS HERE
                     queue.enqueue(coord{nx, ny}); // add tile
                     visited[nx][ny] = true;
 
@@ -374,9 +380,9 @@ int BFS(coord currentpos, Grid& mapGrid, coord endpos, coord path[MAP_SIZE * MAP
 
 }
 */
-// allowStairsAndBlue: if true, STAIR and BLUE tiles are traversable (fallback mode).
+// allowBlue: if true, BLUE tiles are traversable (fallback mode).
 // Returns empty deque if endpos is unreachable under the given constraints.
-std::deque<std::pair<int, std::pair<int,int>>> BFS(std::pair<int, std::pair<int, int>> currentpos, Grid& m1, Grid& m2, Grid& m3, std::pair<int, std::pair<int, int>> endpos, bool allowStairsAndBlue = false) {
+std::deque<std::pair<int, std::pair<int,int>>> BFS(std::pair<int, std::pair<int, int>> currentpos, Grid& m1, Grid& m2, Grid& m3, std::pair<int, std::pair<int, int>> endpos, bool allowBlue = false) {
     std::deque<std::pair<int, std::pair<int, int>>> queue;
     size_t rows = MAP_SIZE;
     size_t columns = MAP_SIZE;
@@ -407,7 +413,7 @@ std::deque<std::pair<int, std::pair<int,int>>> BFS(std::pair<int, std::pair<int,
                                 !map[nz][nx][ny].getWall(opposite((Direction)i)) &&
                                 map[nz][nx][ny].getDiscovered() &&
                                 map[nz][nx][ny].getType() != BLACK;
-                if (!allowStairsAndBlue) {
+                if (!allowBlue) {
                     passable = passable && map[nz][nx][ny].getType() != BLUE;
                 }
 

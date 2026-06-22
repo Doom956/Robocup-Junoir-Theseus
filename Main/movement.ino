@@ -145,10 +145,9 @@ void fwd(double dist){ // in mm
       stepForward(currentDir, x_pos, y_pos);
       writeWallsToCurrentTile(0, 1, 0, 1);
       updateFullyExploredAt(x_pos, y_pos);
-      // set stair type
-      mapGrid[x_pos][y_pos].setType(4);
       // moving between floors
       // only elevate the first tile of a ramp.
+      // transition to another map
       if(i==0){
         if(upwards==true) elevation(mapGrid, x_pos, y_pos, m1, m2, m3, currentFloor); // elevate
         else descend(mapGrid, x_pos, y_pos, m1, m2, m3, currentFloor);
