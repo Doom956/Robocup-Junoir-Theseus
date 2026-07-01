@@ -18,9 +18,9 @@ void fwd(double dist){ // in mm
   int cnt = 0; // tiles traversed while climbing.
   double difference = 0; // centering distance
   Tile &t = mapGrid[x_pos][y_pos]; // tile object to update
-  PID myPID(0.30,0,0.2); // pid for centering
+  PID climbPID(10,0,0.1); // pid for centering
   PID gyroPID(3.5,0,0.1);
-  PID Scale_PID(0.006,0,0.0008); // pid for encoder 0.0008
+  PID Scale_PID(0.007,0,0.0008); // pid for encoder 0.0008
   Serial.println("forwarding");
   // allow the camera RTOS thread to flag victims for this move
   obstacleright = false;
@@ -34,14 +34,27 @@ void fwd(double dist){ // in mm
   int front_left_last=measure(7); int front_right_last=measure(1);
   timer myTime;
   myTime.reset_delta_time();
-  while((climbtoggle==true||(drivetrain.encoderCountA+drivetrain.encoderCountB+drivetrain.encoderCountD)/3<=pulses*1.1)&&black!=true){
+  int front_left = measure(7);int front_right = measure(1);
+  if(front_left<=MIN_DIST&&front_left!=-1&&!(front_right<=MIN_DIST&&front_right!=-1)){
+      obstacleavoidance(1);
+      drivetrain.fullstop();
+      delay(50);
+      return;
+    }
+    else if(front_right<=MIN_DIST&&front_right!=-1&&!(front_left<=MIN_DIST&&front_left!=-1)){
+      obstacleavoidance(0);
+      drivetrain.fullstop();
+      delay(50);
+      return;
+    }
+  while((climbtoggle==true||(drivetrain.encoderCountA+drivetrain.encoderCountB+drivetrain.encoderCountD)/3<=pulses*1.2)&&black!=true){
     //Serial.println((drivetrain.encoderCountA+drivetrain.encoderCountB+drivetrain.encoderCountD)/3);
     if(Pausemaze==true) {drivetrain.fullstop(); break;}
     // Service a camera victim flagged by the RTOS thread: stop, pause PID +
     // timer, identify + dispense, then resume. (claude version 6/16/2026)
     if(victimPending){
       drivetrain.fullstop(); // does not overide the thread
-      myPID.pausePID(1);
+      climbPID.pausePID(1);
       gyroPID.pausePID(1);
       Scale_PID.pausePID(1);
       myTime.pause(1);
@@ -49,7 +62,7 @@ void fwd(double dist){ // in mm
         rtos::ThisThread::sleep_for(std::chrono::milliseconds(1));
       }
       gyroPID.pausePID(2);
-      myPID.pausePID(2);
+      climbPID.pausePID(2);
       Scale_PID.pausePID(2);
       myTime.pause(2);
     }
@@ -89,7 +102,7 @@ void fwd(double dist){ // in mm
     front_left_current = measure(7);
     front_right_current = measure(1);
     
-    if((front_left_current<=50&&front_left_current!=-1)||(front_right_current<=50&&front_right_current!=-1)){
+    if((front_left_current<=50&&front_left_current!=-1)&&(front_right_current<=50&&front_right_current!=-1)){
       Serial.println("stopping");
       // if the robot doesn't make it halfway across the tile, fwd failed.
       
@@ -97,21 +110,10 @@ void fwd(double dist){ // in mm
       delay(50);
       break;
     }
-    else if(front_left_current<=50&&front_left_current!=-1&&!(front_right_current<=50&&front_right_current!=-1)){
-      obstacleavoidance(1);
-      drivetrain.fullstop();
-      delay(50);
-      break;
-    }
-    else if(front_right_current<=50&&front_right_current!=-1&&!(front_left_current<=50&&front_left_current!=-1)){
-      obstacleavoidance(0);
-      drivetrain.fullstop();
-      delay(50);
-      break;
-    }
+    
     // check pitch: if it is greater than 25, the robot is going up a slope, so the encoder is turned off.
-
-     if(abs(myGyro.modulus(myGyro.pitch_heading())-init_pitch) > 20){
+    Serial.println(adjustment);
+    if(abs(myGyro.modulus(myGyro.pitch_heading())-init_pitch) > 20){
       Serial.println("climbing");
       int _encoderCountA = drivetrain.encoderCountA; // save values before ramp
       int _encoderCountB = drivetrain.encoderCountB;
@@ -127,12 +129,14 @@ void fwd(double dist){ // in mm
         if(yaw>180) yaw = yaw-360;
         if(yaw<-180) yaw+= 360;
     
-        double adjustment = gyroPID.getPID(yaw);
+        double adjustment = climbPID.getPID(yaw);
         
         Serial.println("climbing");
-        Serial.println(abs(myGyro.modulus(myGyro.pitch_heading())-init_pitch));
+        //Serial.println(abs(myGyro.modulus(myGyro.pitch_heading())-init_pitch));
+        Serial.println(adjustment);
         // center during climbing
-        drivetrain.drive(150+adjustment,150+adjustment,150-adjustment,150-adjustment);
+        if(upwards == true) drivetrain.drive(180-adjustment,180-adjustment,180+adjustment,180+adjustment);
+        if(upwards == false) drivetrain.drive(120-adjustment,120-adjustment,120+adjustment,120+adjustment);
         //Serial.println((drivetrain.encoderCountD+drivetrain.encoderCountA+drivetrain.encoderCountB)/3);
         if((drivetrain.encoderCountD+drivetrain.encoderCountA+drivetrain.encoderCountB)/3 >= pulses/cos(abs(myGyro.modulus(myGyro.pitch_heading())-init_pitch)*(M_PI/180))){
           Serial.println("1 section of the ramp climbed");

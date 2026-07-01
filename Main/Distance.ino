@@ -355,16 +355,10 @@ void obstacleavoidance(int leftright){ // leftright determines to manuver left o
         else if(leftright == 0){
           while(true){
             int a = measure(6); int b = measure(5);
+            if(a<=30) break;
             double increment = pid.getPID(a-b); // signed error: positive turns one way, negative the other
             drivetrain.drive(constrain(100-increment,50,170),constrain(100-increment,50,170),constrain(100+increment,50,170),constrain(100+increment,50,170));
-            if(a<=30) break;
-            if(abs(b-a)<=15){
-              //fwd
-              drivetrain.fullstop();
-              delay(200);
-              steps = FWD;
-              goto end;
-            }
+            
             if(abs(a-b)<=15){
               drivetrain.fullstop();
               delay(200);
@@ -417,6 +411,7 @@ void obstacleavoidance(int leftright){ // leftright determines to manuver left o
         delay(200);
         
         fwd((300-(_-measure(1))<0) ? 0:300-(_-measure(1))); // subtract already travelled distance.
+        steps = TURN;
         return;
       }
       case WIGGLE:{

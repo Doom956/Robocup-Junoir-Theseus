@@ -308,8 +308,8 @@ void setup(){
 int iterator = 0;
 
 void loop(){
-  obstacleavoidance(1);
-  /*
+  
+  
   //lcdPrint("working");
   //delay(500);
   
@@ -317,7 +317,7 @@ void loop(){
   switch (state) {
     case SENSE_TILE: {
       // reset per-tile toggles
-      blacktoggle = false; bluetoggle = false; victimtoggle = false; botchedfwd = false;
+      blacktoggle = false; bluetoggle = false; victimtoggle = false; 
       // Read for walls
       readWallsRel(wallF, wallR, wallB, wallL);
       delay(500);
@@ -336,7 +336,7 @@ void loop(){
       
       // Unused and I think this conflicts with cameraTask reading getVictim.
       //Serial.println("victim detect");
-      
+      /*
       Tile &t = mapGrid[x_pos][y_pos];
       if(t.getVictim() == false){ // no victim on tile
         if(readSerial1() != -1 && detectWall(3) == 0){       // left camera (Serial3)
@@ -354,7 +354,7 @@ void loop(){
         victimtoggle = false;
       }
       delay(100);
-      
+      */
       state = PLAN_NEXT;
       if(Pausemaze == true) state = PAUSE;
       break;
@@ -390,10 +390,7 @@ void loop(){
       //    (advancing x_pos/y_pos for any climbed tiles) and services any
       //    camera victim reported by the RTOS thread during the move.
       fwd(TILE_MM);
-      if(botchedfwd==true){ // botched forward recovery
-        state = BOTCHED_FWD_RECOVERY;
-        break;
-      }
+      
       // 3) update map + robot position only on a successful (non-black) move
       if(blacktoggle == false){
         markEdgeBothWays(x_pos, y_pos, currentDir);
@@ -537,6 +534,6 @@ void loop(){
       break;
     }
  }
- */
+ 
  
 }

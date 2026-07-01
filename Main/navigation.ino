@@ -382,7 +382,7 @@ int BFS(coord currentpos, Grid& mapGrid, coord endpos, coord path[MAP_SIZE * MAP
 */
 // Compact BFS node. uint8_t is safe because MAP_SIZE (40) and floors (3) both
 // fit easily; keeps the static scratch arrays small.
-struct BfsNode { uint8_t z, x, y; };
+struct BfsNode { uint8_t z, x, y; }; // 3d coords by claude?
 
 // allowBlue: if true, BLUE tiles are traversable (fallback mode).
 // Returns empty deque if endpos is unreachable under the given constraints.
@@ -406,7 +406,6 @@ std::deque<std::pair<int, std::pair<int,int>>> BFS(std::pair<int, std::pair<int,
     int ez = endpos.first, ex = endpos.second.first, ey = endpos.second.second;
 
     // already at the goal: return a trivial path. Guards the reconstruction loop
-    // below, whose prev[start] is self-referential and would spin forever.
     if (start.z == ez && start.x == ex && start.y == ey) {
         return { currentpos };
     }
