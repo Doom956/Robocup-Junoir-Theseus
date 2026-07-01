@@ -1,0 +1,4 @@
+{"logTime": "0613/020106", "session": "START"}
+{"logTime": "0613/020106", "level": "INFO", "location": "chrome\\browser\\ui\\startup\\startup_browser_creator_impl.cc:350 EdgeLogLastSessionExitTypeOnStartup", "message": "Previous Session Exit Type: PreviousSessionExitType::kNormalBrowserShutDown"}
+{"logTime": "0613/020106", "level": "INFO", "location": "chrome\\browser\\ui\\startup\\startup_browser_creator_impl.cc:1388 DetermineURLsAndLaunch", "message": "Startup Preference: 0"}
+{"logTime": "0613/020106", "level": "INFO", "location": "chrome\\browser\\ui\\startup\\startup_browser_creator_impl.cc:1390 DetermineURLsAndLaunch", "message": "Browser Open Behavior: 0"}

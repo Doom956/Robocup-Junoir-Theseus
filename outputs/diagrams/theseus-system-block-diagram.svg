@@ -1,0 +1,170 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8fbff"/>
+      <stop offset="1" stop-color="#eef4fb"/>
+    </linearGradient>
+    <linearGradient id="controller" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#405de6"/>
+      <stop offset="1" stop-color="#243b9f"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="7" stdDeviation="8" flood-color="#17324d" flood-opacity=".18"/>
+    </filter>
+    <marker id="arrow-blue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#2878c8"/>
+    </marker>
+    <marker id="arrow-purple" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#7654c4"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#238b67"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#dc7628"/>
+    </marker>
+    <marker id="arrow-gray" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#526678"/>
+    </marker>
+    <style>
+      .title { font: 700 38px Arial, sans-serif; fill: #17324d; }
+      .subtitle { font: 400 18px Arial, sans-serif; fill: #526678; }
+      .group { font: 700 19px Arial, sans-serif; letter-spacing: 1.5px; }
+      .node-title { font: 700 22px Arial, sans-serif; fill: #17324d; }
+      .node-sub { font: 400 16px Arial, sans-serif; fill: #526678; }
+      .center-title { font: 700 30px Arial, sans-serif; fill: white; }
+      .center-sub { font: 400 17px Arial, sans-serif; fill: #e5ebff; }
+      .label { font: 700 15px Arial, sans-serif; }
+      .small { font: 400 14px Arial, sans-serif; fill: #526678; }
+      .box { stroke-width: 2.5; rx: 18; filter: url(#shadow); }
+      .line { fill: none; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <text x="80" y="72" class="title">Theseus Robot System Block Diagram</text>
+  <text x="80" y="105" class="subtitle">Sensor inputs, communication pathways, central processing, and actuator outputs</text>
+
+  <!-- Group backgrounds -->
+  <rect x="55" y="145" width="395" height="760" rx="28" fill="#e9f5ff" stroke="#b7daf5" stroke-width="2"/>
+  <rect x="485" y="145" width="630" height="760" rx="28" fill="#f2efff" stroke="#d6cdf5" stroke-width="2"/>
+  <rect x="1150" y="145" width="395" height="760" rx="28" fill="#fff2e6" stroke="#f3cfad" stroke-width="2"/>
+
+  <text x="85" y="185" class="group" fill="#2878c8">SENSING AND VISION</text>
+  <text x="515" y="185" class="group" fill="#7654c4">PROCESSING AND INTERFACES</text>
+  <text x="1180" y="185" class="group" fill="#dc7628">ACTUATION</text>
+
+  <!-- Sensor nodes -->
+  <rect x="90" y="230" width="320" height="110" class="box" fill="#ffffff" stroke="#2878c8"/>
+  <circle cx="130" cy="285" r="22" fill="#dcedfb" stroke="#2878c8" stroke-width="3"/>
+  <path d="M119 285h22M130 274v22" stroke="#2878c8" stroke-width="3" stroke-linecap="round"/>
+  <text x="170" y="278" class="node-title">VL53L0X Array</text>
+  <text x="170" y="306" class="node-sub">7 time-of-flight sensors</text>
+
+  <rect x="90" y="380" width="320" height="110" class="box" fill="#ffffff" stroke="#2878c8"/>
+  <circle cx="130" cy="435" r="22" fill="#dcedfb" stroke="#2878c8" stroke-width="3"/>
+  <circle cx="122" cy="431" r="6" fill="#e84b4b"/><circle cx="138" cy="431" r="6" fill="#36a66a"/><circle cx="130" cy="445" r="6" fill="#4279d9"/>
+  <text x="170" y="428" class="node-title">TCS34725</text>
+  <text x="170" y="456" class="node-sub">Floor colour sensor</text>
+
+  <rect x="90" y="530" width="320" height="110" class="box" fill="#ffffff" stroke="#2878c8"/>
+  <circle cx="130" cy="585" r="22" fill="#dcedfb" stroke="#2878c8" stroke-width="3"/>
+  <path d="M116 585h28M130 571v28M120 575l20 20M140 575l-20 20" stroke="#2878c8" stroke-width="2.4"/>
+  <text x="170" y="578" class="node-title">BNO055 IMU</text>
+  <text x="170" y="606" class="node-sub">Heading, pitch, and orientation</text>
+
+  <rect x="90" y="680" width="320" height="110" class="box" fill="#ffffff" stroke="#238b67"/>
+  <circle cx="130" cy="735" r="22" fill="#dcf4eb" stroke="#238b67" stroke-width="3"/>
+  <path d="M115 725h30v20h-30zM122 720l4-6h8l4 6" fill="none" stroke="#238b67" stroke-width="2.5"/>
+  <text x="170" y="728" class="node-title">OpenMV H7 Plus</text>
+  <text x="170" y="756" class="node-sub">Victim detection cameras</text>
+
+  <rect x="90" y="830" width="320" height="55" rx="16" fill="#ffffff" stroke="#526678" stroke-width="2.5" filter="url(#shadow)"/>
+  <text x="250" y="852" text-anchor="middle" class="node-title" font-size="19">Wheel Encoders</text>
+  <text x="250" y="875" text-anchor="middle" class="small">Distance and direction feedback</text>
+
+  <!-- Processing nodes -->
+  <rect x="530" y="230" width="540" height="145" rx="24" fill="url(#controller)" stroke="#1d2f7d" stroke-width="3" filter="url(#shadow)"/>
+  <text x="800" y="286" text-anchor="middle" class="center-title">Arduino Mega</text>
+  <text x="800" y="319" text-anchor="middle" class="center-sub">Navigation state machine • mapping • PID control</text>
+  <text x="800" y="347" text-anchor="middle" class="center-sub">victim response • actuator commands</text>
+
+  <rect x="590" y="450" width="420" height="110" class="box" fill="#ffffff" stroke="#7654c4"/>
+  <text x="800" y="493" text-anchor="middle" class="node-title">I2C Multiplexer</text>
+  <text x="800" y="525" text-anchor="middle" class="node-sub">Routes shared I2C bus between sensors</text>
+
+  <rect x="590" y="650" width="420" height="110" class="box" fill="#ffffff" stroke="#7654c4"/>
+  <text x="800" y="693" text-anchor="middle" class="node-title">Software Control Layer</text>
+  <text x="800" y="725" text-anchor="middle" class="node-sub">MazeTile map • navigation • recovery logic</text>
+
+  <rect x="590" y="810" width="420" height="75" rx="18" fill="#ffffff" stroke="#7654c4" stroke-width="2.5" filter="url(#shadow)"/>
+  <text x="800" y="843" text-anchor="middle" class="node-title" font-size="20">Power and Common Ground</text>
+  <text x="800" y="870" text-anchor="middle" class="small">Shared electrical reference between subsystems</text>
+
+  <!-- Actuator nodes -->
+  <rect x="1190" y="260" width="315" height="120" class="box" fill="#ffffff" stroke="#dc7628"/>
+  <text x="1348" y="305" text-anchor="middle" class="node-title">Carobot Motor Shield</text>
+  <text x="1348" y="337" text-anchor="middle" class="node-sub">Four-channel DC motor control</text>
+
+  <rect x="1190" y="440" width="315" height="105" class="box" fill="#ffffff" stroke="#dc7628"/>
+  <circle cx="1250" cy="492" r="25" fill="#ffe5cc" stroke="#dc7628" stroke-width="3"/>
+  <path d="M1235 492h30M1250 477v30" stroke="#dc7628" stroke-width="3"/>
+  <text x="1300" y="485" class="node-title">Drive Motors</text>
+  <text x="1300" y="513" class="node-sub">Four geared motors</text>
+
+  <rect x="1190" y="625" width="315" height="120" class="box" fill="#ffffff" stroke="#dc7628"/>
+  <text x="1348" y="670" text-anchor="middle" class="node-title">Stepper Motor Shield</text>
+  <text x="1348" y="702" text-anchor="middle" class="node-sub">Rescue-kit dispenser control</text>
+
+  <rect x="1190" y="805" width="315" height="80" class="box" fill="#ffffff" stroke="#dc7628"/>
+  <text x="1348" y="840" text-anchor="middle" class="node-title">Stepper Motor</text>
+  <text x="1348" y="866" text-anchor="middle" class="node-sub">Indexes dispenser turntable</text>
+
+  <!-- Connections from sensors to mux -->
+  <path d="M410 285 H500 V480 H590" class="line" stroke="#2878c8" marker-end="url(#arrow-blue)"/>
+  <path d="M410 435 H520 V500 H590" class="line" stroke="#2878c8" marker-end="url(#arrow-blue)"/>
+  <path d="M410 585 H500 V530 H590" class="line" stroke="#2878c8" marker-end="url(#arrow-blue)"/>
+  <rect x="460" y="396" width="58" height="28" rx="14" fill="#e9f5ff" stroke="#2878c8"/>
+  <text x="489" y="415" text-anchor="middle" class="label" fill="#2878c8">I2C</text>
+
+  <!-- Mux to controller -->
+  <path d="M800 450 V375" class="line" stroke="#7654c4" marker-end="url(#arrow-purple)"/>
+  <rect x="813" y="397" width="58" height="28" rx="14" fill="#f2efff" stroke="#7654c4"/>
+  <text x="842" y="416" text-anchor="middle" class="label" fill="#7654c4">I2C</text>
+
+  <!-- Vision and encoders -->
+  <path d="M410 735 H470 V325 H530" class="line" stroke="#238b67" marker-end="url(#arrow-green)"/>
+  <rect x="428" y="613" width="68" height="28" rx="14" fill="#e8f7f0" stroke="#238b67"/>
+  <text x="462" y="632" text-anchor="middle" class="label" fill="#238b67">UART</text>
+  <path d="M410 858 H480 V345 H530" class="line" stroke="#526678" marker-end="url(#arrow-gray)"/>
+  <rect x="425" y="793" width="92" height="28" rx="14" fill="#f1f4f6" stroke="#526678"/>
+  <text x="471" y="812" text-anchor="middle" class="label" fill="#526678">PULSES</text>
+
+  <!-- Controller to software -->
+  <path d="M800 375 V650" class="line" stroke="#7654c4" stroke-dasharray="10 10" marker-end="url(#arrow-purple)"/>
+  <rect x="815" y="585" width="86" height="28" rx="14" fill="#f2efff" stroke="#7654c4"/>
+  <text x="858" y="604" text-anchor="middle" class="label" fill="#7654c4">DATA</text>
+
+  <!-- Controller to actuator shields -->
+  <path d="M1070 285 H1130 V320 H1190" class="line" stroke="#dc7628" marker-end="url(#arrow-orange)"/>
+  <rect x="1090" y="266" width="82" height="28" rx="14" fill="#fff2e6" stroke="#dc7628"/>
+  <text x="1131" y="285" text-anchor="middle" class="label" fill="#dc7628">I2C</text>
+  <path d="M1070 335 H1110 V685 H1190" class="line" stroke="#dc7628" marker-end="url(#arrow-orange)"/>
+  <rect x="1080" y="557" width="105" height="28" rx="14" fill="#fff2e6" stroke="#dc7628"/>
+  <text x="1132" y="576" text-anchor="middle" class="label" fill="#dc7628">CONTROL</text>
+
+  <!-- Shields to motors -->
+  <path d="M1348 380 V440" class="line" stroke="#dc7628" marker-end="url(#arrow-orange)"/>
+  <rect x="1363" y="396" width="86" height="28" rx="14" fill="#fff2e6" stroke="#dc7628"/>
+  <text x="1406" y="415" text-anchor="middle" class="label" fill="#dc7628">POWER</text>
+  <path d="M1348 745 V805" class="line" stroke="#dc7628" marker-end="url(#arrow-orange)"/>
+  <rect x="1363" y="761" width="86" height="28" rx="14" fill="#fff2e6" stroke="#dc7628"/>
+  <text x="1406" y="780" text-anchor="middle" class="label" fill="#dc7628">STEPS</text>
+
+  <!-- Legend -->
+  <rect x="530" y="925" width="540" height="45" rx="18" fill="#ffffff" stroke="#cad5df" stroke-width="2"/>
+  <circle cx="565" cy="948" r="7" fill="#2878c8"/><text x="582" y="954" class="small">Sensors / I2C</text>
+  <circle cx="705" cy="948" r="7" fill="#238b67"/><text x="722" y="954" class="small">Vision / UART</text>
+  <circle cx="845" cy="948" r="7" fill="#7654c4"/><text x="862" y="954" class="small">Processing</text>
+  <circle cx="970" cy="948" r="7" fill="#dc7628"/><text x="987" y="954" class="small">Actuation</text>
+</svg>
