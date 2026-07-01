@@ -19,8 +19,8 @@ void fwd(double dist){ // in mm
   double difference = 0; // centering distance
   Tile &t = mapGrid[x_pos][y_pos]; // tile object to update
   PID climbPID(10,0,0.1); // pid for centering
-  PID gyroPID(3.5,0,0.1);
-  PID Scale_PID(0.007,0,0.0008); // pid for encoder 0.0008
+  PID gyroPID(6,0,0.05);
+  PID Scale_PID(0.014,0,0.0008); // pid for encoder 0.0008
   Serial.println("forwarding");
   // allow the camera RTOS thread to flag victims for this move
   obstacleright = false;

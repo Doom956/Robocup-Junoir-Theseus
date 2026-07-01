@@ -42,7 +42,7 @@ int read_color(){
   Serial.print(b);
   Serial.print(" ");
   */
-  //Serial.println(c/clear);
+  Serial.println(c/clear);
   
   if((float)c/clear<BLACK_THRESHOLD){
     

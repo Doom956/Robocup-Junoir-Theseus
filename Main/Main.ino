@@ -24,11 +24,11 @@
 #include "gyro.h"
 #include "dispenser.h"
 #include "motors.h"
-#define MIN_DIST 120         // mm (tune this)
+#define MIN_DIST 150         // mm (tune this)
 #define TILE_MM 300         // one tile = 300mm (RCJ tile)
 #define BLACK_THRESHOLD 0.1 // color clear-channel threshold ratio for black
-#define SILVER_THRESHOLD 0.7f // ratio threshold — calibrate on real silver tile (typical normal~0.8, silver~2.0+)
-#define WHITE_THRESHOLD 0.8f
+#define SILVER_THRESHOLD 0.90f // ratio threshold — calibrate on real silver tile (typical normal~0.8, silver~2.0+)
+#define WHITE_THRESHOLD 0.99f
 #define MULTIPLER 1.1 
 float clear; 
 
@@ -301,15 +301,23 @@ void setup(){
   cameraThread.start(cameraTask);
   cameraThread.set_priority(osPriorityAboveNormal);
   pauseThread.start(pauseTask);
-  Serial.println("starting");
+  //Serial.println("starting");
   delay(2000); // wait for camera to start.
   
 }
 int iterator = 0;
 
 void loop(){
-  
-  
+  /*
+  for(int i = 1;i<=7;i++){
+    Serial.print("sensor ");
+    Serial.println(i);
+    Serial.println(measure(i));
+    delay(500);
+  }
+  */
+  //Serial.println(read_color());
+
   //lcdPrint("working");
   //delay(500);
   
@@ -320,7 +328,7 @@ void loop(){
       blacktoggle = false; bluetoggle = false; victimtoggle = false; 
       // Read for walls
       readWallsRel(wallF, wallR, wallB, wallL);
-      delay(500);
+      delay(200);
       state = UPDATE_MAP; // next state.
       if(Pausemaze == true) state = PAUSE; 
       break;
@@ -334,27 +342,7 @@ void loop(){
     }
     case VICTIM_DETECT: {
       
-      // Unused and I think this conflicts with cameraTask reading getVictim.
-      //Serial.println("victim detect");
-      /*
-      Tile &t = mapGrid[x_pos][y_pos];
-      if(t.getVictim() == false){ // no victim on tile
-        if(readSerial1() != -1 && detectWall(3) == 0){       // left camera (Serial3)
-          Serial.println("victim at left");
-          clearSerialBuffer1();
-          if(detectCam1()==true) victimtoggle = true;
-        }
-        else if(readSerial2() != -1 && detectWall(1) == 0){  // right camera (Serial2)
-          Serial.println("victim at right");
-          clearSerialBuffer2();
-          if(detectCam2()==true) victimtoggle = true;
-        }
-        // a victim discovered for this tile -> record it on the tile datatype.
-        if(victimtoggle == true) t.setVictim(true);
-        victimtoggle = false;
-      }
-      delay(100);
-      */
+      
       state = PLAN_NEXT;
       if(Pausemaze == true) state = PAUSE;
       break;
@@ -430,7 +418,7 @@ void loop(){
       state = EXECUTE_MOVE;
       blacktoggle = false;
       if(Pausemaze == true) state = PAUSE;
-      delay(500);
+      delay(200);
       break;
     }
     case BOTCHED_TURN_RECOVERY: {
@@ -466,7 +454,7 @@ void loop(){
         path = BFS(currentpos, m1, m2, m3, endpos, true);
       }
       if(path.empty()){
-        Serial.println("no path to home found, stopping");
+        lcdPrint("no path found");
         while(true) drivetrain.fullstop();
       }
       Serial.println("path calculated");
