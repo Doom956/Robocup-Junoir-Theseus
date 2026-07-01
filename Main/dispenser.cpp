@@ -16,6 +16,10 @@ void dispenser::rotate(int degrees){
   myStepper.step(steps);
 }
 void dispenser::dispenseLeft(char victim){ // clockwise
+  if(medkits <= 0){
+    Serial.println("dispenseLeft: no medkits remaining, skipping dispense");
+    return;
+  }
   switch(victim){
     case 'H':
       rotate(-(incr*2+offset+leftDispensed*incr));
@@ -34,6 +38,10 @@ void dispenser::dispenseLeft(char victim){ // clockwise
   }
 }
 void dispenser::dispenseRight(char victim){ // clockwise
+  if(medkits <= 0){
+    Serial.println("dispenseRight: no medkits remaining, skipping dispense");
+    return;
+  }
   switch(victim){
     case 'H':
       rotate(incr*2+offset+rightDispensed*incr-11);
