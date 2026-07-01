@@ -290,6 +290,82 @@ void parallel(){
   drivetrain.reset_encoderCount(true,true,true);
   drivetrain.fullstop();
 }
+
+// Self-centers the robot front-to-back within a tile using the front wall
+// (avg of sensors 1+7). Only acts when a front wall is present; back-wall-only
+// centering is not implemented yet. parallel() runs first so the robot is
+// squared to a side wall before the front reading is trusted.
+void centerFrontBack(){
+  const int CENTERING_SPEED = 90;                   // mirrors PARALLEL_SPEED
+  const unsigned long CENTERING_TIMEOUT_MS = 2000;
+  // MAX_CENTER_CORRECTION_MM is a file-scope #define (Main.ino), shared with
+  // the SENSE_TILE trigger gate — redundant safety abort in case conditions
+  // changed between the trigger check and this function actually running.
+
+  Serial.println("centering front-back (front wall)");
+  parallel();
+
+  if(detectWall(0) != 0){ // 0 == wall present, matches detectWall's convention
+    Serial.println("centerFrontBack: no front wall, nothing to center against");
+    return;
+  }
+
+  int front1 = measure(1);
+  int front7 = measure(7);
+  if(front1 == -1 || front7 == -1){
+    Serial.println("centerFrontBack: invalid initial reading, aborting");
+    return;
+  }
+
+  double frontGap = (front1 + front7) / 2.0;
+  double offset = frontGap - TARGET_GAP_MM; // +ve => too far from front wall, drive forward; -ve => drive backward
+
+  if(abs(offset) >= MAX_CENTER_CORRECTION_MM){
+    Serial.println("centerFrontBack: offset exceeds sanity cap, aborting");
+    return;
+  }
+  if(abs(offset) <= CENTER_TOL_MM){
+    Serial.println("already centered");
+    return;
+  }
+
+  bool driveForward = offset > 0;
+  unsigned long startMs = millis();
+
+  while(true){
+    front1 = measure(1);
+    front7 = measure(7);
+    if(front1 == -1 || front7 == -1){
+      Serial.println("centerFrontBack: invalid sensor reading mid-correction, aborting");
+      break;
+    }
+
+    frontGap = (front1 + front7) / 2.0;
+    offset = frontGap - TARGET_GAP_MM;
+
+    if(abs(offset) <= CENTER_TOL_MM){
+      Serial.println("centered");
+      break;
+    }
+    // If the live offset flips sign vs. our initial decision, we've
+    // overshot — stop rather than reversing (avoids oscillation).
+    if((offset > 0) != driveForward){
+      Serial.println("centerFrontBack: overshot target, stopping to avoid oscillation");
+      break;
+    }
+    if((millis() - startMs) >= CENTERING_TIMEOUT_MS){
+      Serial.println("centerFrontBack: timeout, aborting correction");
+      break;
+    }
+
+    if(driveForward) drivetrain.fw(CENTERING_SPEED);
+    else drivetrain.backward(CENTERING_SPEED);
+  }
+
+  drivetrain.fullstop();
+  drivetrain.reset_encoderCount(true,true,true);
+}
+
 int center(){
   int a = measure(2);
   int b = measure(6);
