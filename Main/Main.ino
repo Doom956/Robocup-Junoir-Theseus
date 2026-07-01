@@ -26,6 +26,10 @@
 #include "motors.h"
 #define MIN_DIST 120         // mm (tune this)
 #define TILE_MM 300         // one tile = 300mm (RCJ tile)
+#define ROBOT_LENGTH_MM 195                                      // mm, robot front-to-back length
+#define TARGET_GAP_MM (((double)TILE_MM - ROBOT_LENGTH_MM) / 2.0) // mm, ideal front/back clearance when centered (52.5)
+#define CENTER_TOL_MM 10                                          // mm, front-back centering tolerance
+#define MAX_CENTER_CORRECTION_MM 300.0                            // mm, one tile — offset this large means an unreliable reading or the robot isn't really in-tile; skip/abort centering
 #define BLACK_THRESHOLD 0.1 // color clear-channel threshold ratio for black
 #define SILVER_THRESHOLD 0.7f // ratio threshold — calibrate on real silver tile (typical normal~0.8, silver~2.0+)
 #define WHITE_THRESHOLD 0.8f
@@ -98,6 +102,7 @@ int currentFloor = 0; // current floor (0..2) for elevation()/descend()
 //states that the robot will be in
 enum RobotState {
   SENSE_TILE,
+  CENTERING,
   UPDATE_MAP,
   PLAN_NEXT,
   VICTIM_DETECT,
@@ -317,12 +322,31 @@ void loop(){
   switch (state) {
     case SENSE_TILE: {
       // reset per-tile toggles
-      blacktoggle = false; bluetoggle = false; victimtoggle = false; 
+      blacktoggle = false; bluetoggle = false; victimtoggle = false;
       // Read for walls
       readWallsRel(wallF, wallR, wallB, wallL);
       delay(500);
       state = UPDATE_MAP; // next state.
-      if(Pausemaze == true) state = PAUSE; 
+      // Auto-trigger front-back centering: only when a front wall is
+      // present, off-center beyond CENTER_TOL_MM, and the offset isn't so
+      // large (>= one tile) that the reading is unreliable. Back-wall
+      // centering isn't implemented yet, so wallB is not checked here.
+      if(wallF == true){
+        int front1 = measure(1);
+        int front7 = measure(7);
+        if(front1 != -1 && front7 != -1){
+          double frontGap = (front1 + front7) / 2.0;
+          double offset = frontGap - TARGET_GAP_MM;
+          if(abs(offset) > CENTER_TOL_MM && abs(offset) < MAX_CENTER_CORRECTION_MM) state = CENTERING;
+        }
+      }
+      if(Pausemaze == true) state = PAUSE;
+      break;
+    }
+    case CENTERING: {
+      centerFrontBack();
+      state = UPDATE_MAP;
+      if(Pausemaze == true) state = PAUSE;
       break;
     }
     case UPDATE_MAP: {
