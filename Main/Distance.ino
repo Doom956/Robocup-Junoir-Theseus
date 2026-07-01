@@ -148,59 +148,18 @@ int measure(int sensor){
 old robot settings
 */
 int measure(int sensor){
-  
-  if(sensor ==1){
-    myMux.setPort(1);
-    int value = sensors[1].readRangeContinuousMillimeters();
-    
-    if (value != -1 && value != 8191) { return value;}
-    else { return -1;}
-      
-  }
-  if(sensor == 2){
-    myMux.setPort(0);
-    int value = sensors[0].readRangeContinuousMillimeters();
-    if (value != -1 && value != 8191) { return value;}
-    else { return -1;}
-      
-  }
-  if(sensor==3){
-    myMux.setPort(6);
-    int value = sensors[6].readRangeContinuousMillimeters();
-    if (value != -1 && value != 8191) { return value;}
-    else { return -1;}
-    
-  }
-  if(sensor==4){
-    myMux.setPort(4);
-    int value = sensors[4].readRangeContinuousMillimeters();
-    if (value != -1 && value != 8191) { return value;}
-    else { return -1;}
-    
-  }
-  if(sensor==5){
-    myMux.setPort(5);
-    int value = sensors[5].readRangeContinuousMillimeters();
-    if (value != -1 && value != 8191) { return value;}
-    else { return -1;}
-    
-  }
-  if(sensor==6){
-    myMux.setPort(3);
-    int value = sensors[3].readRangeContinuousMillimeters();
-    if (value != -1 && value != 8191) { return value;}
-    else { return -1;}
-    
-  }
-  if(sensor==7){
-    myMux.setPort(2);
-    int value = sensors[2].readRangeContinuousMillimeters();
-    if (value != -1 && value != 8191) { return value;}
-    else { return -1;}
-    
-  }
+  // sensor→mux port mapping
+  const int portMap[] = {-1, 1, 0, 6, 4, 5, 3, 2};
+  if(sensor < 1 || sensor > 7) return -1;
+  int port = portMap[sensor];
+  int sensorIdx = port; // sensor index matches port number
 
-  return -1;
+  i2cMutex.lock();
+  myMux.setPort(port);
+  int value = sensors[sensorIdx].readRangeContinuousMillimeters();
+  i2cMutex.unlock();
+
+  return (value != -1 && value != 8191) ? value : -1;
 }
 // detects wall in a direction( 0 is north, 1 is east, etc..) If output = 0, there is a wall.
 // realtive directions(local).
@@ -208,7 +167,7 @@ int detectWall(int dir){
   if(dir == 0){ // check if there is a wall at north
     int a = measure(1);
     int b = measure(7);
-    if((a<MIN_DIST&&a!=-1&&a!=8191)||(b<MIN_DIST&&b!=-1&&b!=8191)){
+    if((a<MIN_DIST&&a!=-1&&a!=8191)&&(b<MIN_DIST&&b!=-1&&b!=8191)){
       return 0; // there is a wall.
     }
     else{
@@ -218,7 +177,7 @@ int detectWall(int dir){
   if(dir == 1){
     int a = measure(2);
     int b = measure(3);
-    if((a<MIN_DIST&&a!=-1&&a!=8191)||(b<MIN_DIST&&b!=-1&&b!=8191)){
+    if((a<MIN_DIST&&a!=-1&&a!=8191)&&(b<MIN_DIST&&b!=-1&&b!=8191)){
       return 0;
     }
     else{
@@ -238,7 +197,7 @@ int detectWall(int dir){
     int a = measure(5);
     int b = measure(6);
     
-    if((a<MIN_DIST&&a!=-1&&a!=8191)||(b<MIN_DIST&&b!=-1&&b!=8191)){
+    if((a<MIN_DIST&&a!=-1&&a!=8191)&&(b<MIN_DIST&&b!=-1&&b!=8191)){
       return 0;
     }
     else{
@@ -253,9 +212,9 @@ int detectWall(int dir){
 void parallel(){
   const int PARALLEL_TOL_MM = 3;
   const int PARALLEL_SPEED = 90;
-  const unsigned long PARALLEL_TIMEOUT_MS = 700;
+  const unsigned long PARALLEL_TIMEOUT_MS = 500;
   const double MAX_PARALLEL_ROTATION_DEG = 45.0;
-
+  
   int sensorA = -1;
   int sensorB = -1;
   int wallDir;
@@ -312,11 +271,11 @@ void parallel(){
     }
 
     // Reset wheel directions then apply correction turn.
+    i2cMutex.lock();
     motorA->run(FORWARD);
     motorB->run(FORWARD);
     motorC->run(FORWARD);
     motorD->run(FORWARD);
-
     if ((diff > 0 && wallDir == 1)||(diff < 0 && wallDir==3)) {
       motorB->run(BACKWARD);
       motorD->run(BACKWARD);
@@ -324,21 +283,23 @@ void parallel(){
       motorA->run(BACKWARD);
       motorC->run(BACKWARD);
     }
+    i2cMutex.unlock();
     drivetrain.drive(PARALLEL_SPEED,PARALLEL_SPEED,PARALLEL_SPEED,PARALLEL_SPEED);
     
   }
-  drivetrain.reset_encoderCount(true,true);
+  drivetrain.reset_encoderCount(true,true,true);
   drivetrain.fullstop();
 }
 int center(){
   int a = measure(2);
   int b = measure(6);
-  if(a<MIN_DIST && a != -1 && b<MIN_DIST && b != -1) return (measure(2)-measure(6));
+  if(a<MIN_DIST && a != -1 && b<MIN_DIST && b != -1) return (a-b);
   else return 0;
 }
 
-int leftright = 0;
+
 void obstacleavoidance(int leftright){ // leftright determines to manuver left or right.
+  int _;
   while(true){
     switch (steps){
       case TURN:{
@@ -349,6 +310,7 @@ void obstacleavoidance(int leftright){ // leftright determines to manuver left o
             motorD->run(BACKWARD);
             drivetrain.drive(255,255,255,255);
           }
+          _ = measure(1);
         }
         else if(leftright == 0){ // obstacle at right
           while(measure(1)<MIN_DIST){
@@ -356,7 +318,7 @@ void obstacleavoidance(int leftright){ // leftright determines to manuver left o
             motorC->run(BACKWARD);
             drivetrain.drive(255,255,255,255);
           }
-          
+          _ = measure(7);
         }
         drivetrain.fullstop();
         delay(200);
@@ -375,13 +337,10 @@ void obstacleavoidance(int leftright){ // leftright determines to manuver left o
             a=measure(2); b = measure(3);
             if(a<=30) break;
             Serial.println("paralleling step");
-            double increment = pid.getPID(abs(a-b)); // get close to the edge as possible.
-            drivetrain.drive(constrain(100-increment,50,170),constrain(100-increment,50,170),constrain(100+increment,50,170),constrain(100+increment,50,170));
+            double increment = pid.getPID(a-b); // signed error: positive turns one way, negative the other
+            drivetrain.drive(constrain(100+increment,50,170),constrain(100+increment,50,170),constrain(100-increment,50,170),constrain(100-increment,50,170));
+            Serial.println(a-b);
             
-            if(measure(6)<=35&&a<=35){
-              steps = WIGGLE;
-              goto end;
-            }
             
             if(abs(b-a)<=15){
               //fwd
@@ -394,14 +353,13 @@ void obstacleavoidance(int leftright){ // leftright determines to manuver left o
           
         }
         else if(leftright == 0){
-          while(measure(6)>=35){
-            double increment = pid.getPID(abs(measure(6)-measure(5))); // get close to the edge as possible.
+          while(true){
+            int a = measure(6); int b = measure(5);
+            if(a<=30) break;
+            double increment = pid.getPID(a-b); // signed error: positive turns one way, negative the other
             drivetrain.drive(constrain(100-increment,50,170),constrain(100-increment,50,170),constrain(100+increment,50,170),constrain(100+increment,50,170));
-            if(measure(6)<=35&&measure(2)<=35){
-              steps = WIGGLE;
-              goto end;
-            }
-            if(abs(measure(6)-measure(5))<=10){
+            
+            if(abs(a-b)<=15){
               drivetrain.fullstop();
               delay(200);
               steps = FWD;
@@ -449,9 +407,11 @@ void obstacleavoidance(int leftright){ // leftright determines to manuver left o
         
         Serial.println("fwd step");
         parallel();
-        drivetrain.reset_encoderCount(true,true);
+        drivetrain.reset_encoderCount(true,true,true);
         delay(200);
-        fwd(300);
+        
+        fwd((300-(_-measure(1))<0) ? 0:300-(_-measure(1))); // subtract already travelled distance.
+        steps = TURN;
         return;
       }
       case WIGGLE:{

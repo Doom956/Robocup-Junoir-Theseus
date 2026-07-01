@@ -1,4 +1,6 @@
-
+// claude version 6/16/2026 — single-core port of the multicore_version loop +
+// navigation, with multi-floor elevation and an RTOS camera-detection thread.
+#include <mbed.h> // access arduino mbed OS (rtos::Thread)
 #include <Wire.h>
 #include <SparkFun_I2C_Mux_Arduino_Library.h>
 #include <VL53L0X.h>
@@ -9,6 +11,12 @@
 #include <utility/imumaths.h>
 
 #include <Stepper.h>
+#include <LiquidCrystal.h> // lcd screen
+#include <array> // std::array (Grid type for multi-floor maps)
+#include <deque>
+#include <vector>
+#include <utility>
+
 #include <ArduinoQueue.h> // queue
 #include <Vector.h> // vector
 #include "PID.h"
@@ -19,8 +27,9 @@
 #define MIN_DIST 120         // mm (tune this)
 #define TILE_MM 300         // one tile = 300mm (RCJ tile)
 #define BLACK_THRESHOLD 0.1 // color clear-channel threshold ratio for black
-#define SILVER_THRESHOLD 1.2f // ratio threshold — calibrate on real silver tile (typical normal~0.8, silver~2.0+)
-#define WHITE_THRESHOLD 0.9f
+#define SILVER_THRESHOLD 0.7f // ratio threshold — calibrate on real silver tile (typical normal~0.8, silver~2.0+)
+#define WHITE_THRESHOLD 0.8f
+#define MULTIPLER 1.1 
 float clear; 
 
 #include "MazeTile.h"
@@ -51,10 +60,12 @@ const int encoderPin_A_A = 3;
 const int encoderPin_A_B = 5; 
 const int encoderPin_B_A = 2;
 const int encoderPin_B_B = 4; 
-// encoder counters
+const int encoderPin_D_A = 18;
+const int encoderPin_D_B = 19;
+
 
 //drivetrain class object
-motors drivetrain(encoderPin_A_A,encoderPin_A_B,encoderPin_B_A,encoderPin_B_B);
+motors drivetrain(encoderPin_A_A,encoderPin_A_B,encoderPin_B_A,encoderPin_B_B,encoderPin_D_A,encoderPin_D_B);
 // wheel cpr
 const double wheel_cpr = 5; // 20/4
 //gear ratio
@@ -68,10 +79,20 @@ char classes[6] = {'H','S','U','R','Y','G'};
 // create stepper object
 const int steps_per_revolution = 2048;
 Stepper myStepper = Stepper(steps_per_revolution, 8, 9,10,11); 
-// map size variables
-const int MAP_SIZE=20;
-Tile mapGrid[MAP_SIZE][MAP_SIZE]; // array of tiles
-// queue
+// create lcd object
+int en = 25; int rs = 27; int d4 = 23; int d5 = 53; int d6 = 29; int d7 = 31;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+// map grids 
+// MAP_SIZE and grid are defined here
+const int MAP_SIZE = 40;
+using Grid = std::array<std::array<Tile, MAP_SIZE>, MAP_SIZE>;
+Grid mapGrid; // active floor's tiles
+Grid m1;      // floor storage ("basement"/floor 0)
+Grid m2;      // floor 1
+Grid m3;      // floor 2
+
+int currentFloor = 0; // current floor (0..2) for elevation()/descend()
+
 
 
 //states that the robot will be in
@@ -82,6 +103,7 @@ enum RobotState {
   VICTIM_DETECT,
   EXECUTE_MOVE,
   BOTCHED_TURN_RECOVERY,
+  BOTCHED_FWD_RECOVERY,
   BACKPEDAL,
   PAUSE,
   RETURN
@@ -116,33 +138,116 @@ timer mazeTime;
 bool blacktoggle = false;
 bool bluetoggle = false;
 bool stairtoggle = false;
+// obstacle toggle
+bool obstacleright = false;
+bool obstacleleft = false;
 // victim toggles
 bool victimtoggle = false;
 bool victimAtCurrent = false;
-// LED pins
-const int pinHarmed = 41;
-const int pinStable = 37;
-const int pinUnharmed = 29;
 // camera GPIOs
 const int gpio1 = 13;
 const int gpio2 = 12;
-// de-activate color sensor while climbing
-int use_color = 0;
 // stepper variables
 const int angle_offset = 44;
 const int angle_increment = 22;
 dispenser disp(angle_increment,angle_offset,steps_per_revolution);
 // logic switch pin
-const int logicswitch = 31;
-bool Pausemaze = false;
-int x_checkpoint, y_checkpoint;
+const int logicswitch = 22;
+volatile bool Pausemaze = false; // set by pauseThread, read by loop()
+int x_checkpoint = MAP_SIZE/2, y_checkpoint = MAP_SIZE/2;
+int floor_checkpoint = 0; // floor the last checkpoint was recorded on (0..2)
 bool tilecheck = false;
+
+// Forward declaration: Arduino can't auto-prototype template return types.
+std::deque<std::pair<int, std::pair<int,int>>> BFS(std::pair<int, std::pair<int,int>> currentpos, Grid& m1, Grid& m2, Grid& m3, std::pair<int, std::pair<int,int>> endpos, bool allowBlue);
 
 double headingErrorDeg(double targetDeg, double actualDeg) {
   double err = targetDeg - actualDeg;
   while (err > 180.0) err -= 360.0;
   while (err < -180.0) err += 360.0;
   return abs(err);
+}
+
+// ===== camera victim-detection RTOS thread (claude version 6/16/2026) =====
+// The thread only checks the camera UARTs (Serial3 = left, Serial2 = right).
+// It never touches the I2C bus (mux/distance/color) so it cannot race the main
+// context's measure()/detectWall() calls. When a camera reports a letter while
+// the robot is moving, the thread raises victimPending; fwd()/absoluteturn()
+// then stop the drivetrain, pause their PID + timer, run detectCam(), and use
+// markVictimAtEncoderPosition() to label the correct tile before resuming.
+volatile bool fwdActive = false; // true only while inside fwd()
+volatile bool turnActive = false;
+volatile bool victimPending = false; // a camera reported -> movement must service it
+volatile int  victimSide = 0;        // 1 = left (Serial3), 2 = right (Serial2)
+volatile bool isVictim = false;      // a victim already handled during current move
+
+rtos::Thread cameraThread;
+rtos::Mutex i2cMutex;
+rtos::Mutex lcdMutex; // lcd mutex to prevent conflict
+void cameraTask(){
+  while(true){
+    int encoderCount = (drivetrain.encoderCountA+drivetrain.encoderCountB+drivetrain.encoderCountD)/3;
+    int nx = x_pos; int ny=y_pos;
+    if((fwdActive||turnActive) && !victimPending && !isVictim){
+      
+      //if(encoderCount>=0.3*pulsesForDistanceMm(TILE_MM)||encoderCount<=0.7*pulsesForDistanceMm(TILE_MM)){
+        if(readSerial1() != -1){        // left camera (Serial4)
+          if(fwdActive) victimTileFromEncoder(TILE_MM,encoderCount,nx,ny);
+          Serial.println("nx, ny");
+          Serial.println(nx);
+          Serial.println(ny);
+          Serial.println(mapGrid[nx][ny].getVictim());
+          if(mapGrid[nx][ny].getVictim() == false){
+            i2cMutex.lock();
+            victimSide = 1;
+            drivetrain.fullstop();
+            victimPending = true;
+            i2cMutex.unlock();
+            rtos::ThisThread::sleep_for(std::chrono::milliseconds(10));
+            i2cMutex.lock();
+            serviceCameraVictim();
+            i2cMutex.unlock();
+          }
+        }
+        else if(readSerial2() != -1){   // right camera (Serial3)
+          if(fwdActive) victimTileFromEncoder(TILE_MM,encoderCount,nx,ny);
+          Serial.println("nx, ny");
+          Serial.println(nx);
+          Serial.println(ny);
+          Serial.println(mapGrid[nx][ny].getVictim());
+          if(mapGrid[nx][ny].getVictim() == false){
+            i2cMutex.lock();
+            victimSide = 2;
+            drivetrain.fullstop();
+            victimPending = true;
+            i2cMutex.unlock();
+            rtos::ThisThread::sleep_for(std::chrono::milliseconds(10));
+            i2cMutex.lock();
+            serviceCameraVictim();
+            i2cMutex.unlock();
+          }
+        }
+      }
+    rtos::ThisThread::sleep_for(std::chrono::milliseconds(10));
+  }
+}
+
+
+// pause maze thread: watches the logic switch and requests a stop.
+rtos::Thread pauseThread;
+void pauseTask(){
+  while(true){
+    
+    if(digitalRead(logicswitch)==HIGH){
+      
+      Pausemaze = true;
+    }
+    else{
+      
+      Pausemaze = false;
+    }
+    rtos::ThisThread::sleep_for(std::chrono::milliseconds(10));
+  }
 }
 
 bool turnCompletedSuccessfully(Direction intendedDir) {
@@ -159,22 +264,17 @@ bool turnCompletedSuccessfully(Direction intendedDir) {
   return err <= TURN_SUCCESS_TOLERANCE_DEG;
 }
 void setup(){
-  // initialize LED puns
-  pinMode(pinHarmed,OUTPUT);
-  pinMode(pinStable,OUTPUT);
-  pinMode(pinUnharmed,OUTPUT);
   // initialize camera gpio pins
   pinMode(gpio1, INPUT);
   pinMode(gpio2, INPUT);
   // initialize logic switch pin
-
+  pinMode(logicswitch, INPUT);
   // begin UART communication.
   Serial.begin(115200);
-  Serial2.begin(115200); // switch to 9600 for reliability
-  Serial3.begin(115200);
-  //flashLED('S');
-  uint8_t cause = MCUSR;
-  MCUSR = 0;
+  Serial3.begin(115200); // switch to 9600 for reliability
+  Serial4.begin(115200);
+  
+  
   Wire.begin();
   disableAllCall();
   myMux.begin();
@@ -184,74 +284,89 @@ void setup(){
   init_drive();
   //detect();
   //initialize map
-  initializeMap();
+  initializeMap(); // initialize mapgrid
+  // every floor starts as a copy of the freshly initialized (empty) grid.
+  m1 = mapGrid;
+  m2 = mapGrid;
+  m3 = mapGrid;
+  currentFloor = 0;
   x_pos=MAP_SIZE/2;
   y_pos=MAP_SIZE/2;
-  mapGrid[x_pos][y_pos].setDiscovered(true); 
+  mapGrid[x_pos][y_pos].setDiscovered(true);
   currentDir = NORTH;
   state = SENSE_TILE;
-  
+  // start lcd
+  lcd.begin(16, 2);
+  // start RTOS threads: camera victim detection + pause-switch watcher.
+  cameraThread.start(cameraTask);
+  cameraThread.set_priority(osPriorityAboveNormal);
+  pauseThread.start(pauseTask);
+  Serial.println("starting");
   delay(2000); // wait for camera to start.
-  //obstacleavoidance(1);
-  fwd(300);
   
 }
 int iterator = 0;
+
 void loop(){
   
-  //drivetrain.drive(150,150,150,150);
-  //Serial.println(measure(2));
-  /*
-  if(Serial2.available()>0){
-    Serial.println((char)Serial2.read());
-    Serial.println("letters coming");
-    delay(1000);
-    detectCam1();
-    clearSerialBuffer1();
-  }
-  Serial.println("nothing");
-  */
   
-  /*
+  //lcdPrint("working");
+  //delay(500);
+  
   static bool wallF, wallR, wallB, wallL;
   switch (state) {
     case SENSE_TILE: {
+      // reset per-tile toggles
+      blacktoggle = false; bluetoggle = false; victimtoggle = false; 
       // Read for walls
       readWallsRel(wallF, wallR, wallB, wallL);
       delay(500);
       state = UPDATE_MAP; // next state.
-      if(Pausemaze == true) state = PAUSE;
+      if(Pausemaze == true) state = PAUSE; 
       break;
     }
     case UPDATE_MAP: {
       writeWallsToCurrentTile(wallF, wallR, wallB, wallL);
       updateFullyExploredAt(x_pos, y_pos);
-      state = PLAN_NEXT;
+      state = VICTIM_DETECT; // poll cameras while stopped before planning.
       if(Pausemaze == true) state = PAUSE;
       break;
     }
     case VICTIM_DETECT: {
-       if(mapGrid[x_pos][y_pos].getVictim() == false){
-        if(measure(1)>MIN_DIST){
-          detect();
+      
+      // Unused and I think this conflicts with cameraTask reading getVictim.
+      //Serial.println("victim detect");
+      /*
+      Tile &t = mapGrid[x_pos][y_pos];
+      if(t.getVictim() == false){ // no victim on tile
+        if(readSerial1() != -1 && detectWall(3) == 0){       // left camera (Serial3)
+          Serial.println("victim at left");
+          clearSerialBuffer1();
+          if(detectCam1()==true) victimtoggle = true;
         }
-        
-        if(victimtoggle == true) mapGrid[x_pos][y_pos].setVictim(true);
+        else if(readSerial2() != -1 && detectWall(1) == 0){  // right camera (Serial2)
+          Serial.println("victim at right");
+          clearSerialBuffer2();
+          if(detectCam2()==true) victimtoggle = true;
+        }
+        // a victim discovered for this tile -> record it on the tile datatype.
+        if(victimtoggle == true) t.setVictim(true);
         victimtoggle = false;
       }
-      delay(200);
-      parallel();
       delay(100);
+      */
+      state = PLAN_NEXT;
+      if(Pausemaze == true) state = PAUSE;
       break;
     }
     case PLAN_NEXT: {
+      Serial.println("plan next");
       plannedMoveDir = pickNextDirection();
-
       plannedTurnDeg = turnNeededDeg(plannedMoveDir);
       turnCompletedForMove = false;
       Serial.println(plannedTurnDeg);
-      if(Pausemaze == true) state = PAUSE;
       state = EXECUTE_MOVE;
+      if(Pausemaze == true) state = PAUSE;
       break;
     }
     case EXECUTE_MOVE: {
@@ -270,50 +385,53 @@ void loop(){
         currentDir = plannedMoveDir;
         turnCompletedForMove = true;
       }
-      if(tilecheck == false){
-        if(mapGrid[x_pos][y_pos].getVictim() == false){
-          if(measure(1)>MIN_DIST){
-            tilecheck = true;
-            detect();
-          }
-        if(victimtoggle == true) mapGrid[x_pos][y_pos].setVictim(true);
-          victimtoggle = false;
-        }
-      }
-      // 2) drive one tile
+
+      // 2) drive one tile. fwd() sets blacktoggle/bluetoggle, handles ramps
+      //    (advancing x_pos/y_pos for any climbed tiles) and services any
+      //    camera victim reported by the RTOS thread during the move.
       fwd(TILE_MM);
-      // 3) update position first, then post-process the tile we landed on
-      if(blacktoggle == false && stairtoggle == false){
+      
+      // 3) update map + robot position only on a successful (non-black) move
+      if(blacktoggle == false){
         markEdgeBothWays(x_pos, y_pos, currentDir);
         stepForward(currentDir, x_pos, y_pos); // x_pos/y_pos now = new tile
-        if(bluetoggle == true){ // stop for 5 seconds on the blue tile we just entered
-          drivetrain.fullstop();
+        if(bluetoggle == true){
           delay(5000);
-          mapGrid[x_pos][y_pos].setBlue(true); // marks the correct (new) tile
+          mapGrid[x_pos][y_pos].setType(BLUE);
         }
-        bluetoggle = false;
       }
       else{
-        bluetoggle = false;
-        state = BACKPEDAL;
+        
+        state = BACKPEDAL; // black tile ahead (marked BLACK by fwd) -> back off
         turnCompletedForMove = false;
         break;
       }
+
       delay(200);
       parallel();
       delay(100);
       iterator += 1;
-      
-      victimtoggle = false;
+
+      isVictim = false;
       turnCompletedForMove = false;
       tilecheck = false;
       state = SENSE_TILE;
       if(Pausemaze == true) state = PAUSE;
       //if(mazeTime.getTime() >= 1000000*60*6) state = RETURN;
       //if(medkits <= 0) state = RETURN;
-      if(iterator >= 15) state = RETURN;
+      if(iterator >= 25) state = RETURN;
       break;
-     
+    }
+    case BACKPEDAL: {
+      plannedMoveDir = pickNextDirection();
+      Serial.println("next direction picked");
+      plannedTurnDeg = turnNeededDeg(plannedMoveDir);
+      turnCompletedForMove = false;
+      state = EXECUTE_MOVE;
+      blacktoggle = false;
+      if(Pausemaze == true) state = PAUSE;
+      delay(500);
+      break;
     }
     case BOTCHED_TURN_RECOVERY: {
       Direction snappedDir = (Direction)myGyro.headingToCardinal(myGyro.heading());
@@ -323,103 +441,99 @@ void loop(){
       delay(150);
       parallel();
       delay(100);
-
       currentDir = snappedDir;
       plannedTurnDeg = turnNeededDeg(plannedMoveDir);
       turnCompletedForMove = false;
       state = EXECUTE_MOVE;
       break;
     }
-    case BACKPEDAL: {
-      plannedMoveDir = pickNextDirection();
-     
-      plannedTurnDeg = turnNeededDeg(plannedMoveDir);
-      turnCompletedForMove = false;
-      state = EXECUTE_MOVE;
-      blacktoggle = false;
-      stairtoggle = false;
-      if(Pausemaze == true) state = PAUSE;
-      delay(500);
-      break;
-    }
     case RETURN: {
-      coord currentpos = {x_pos,y_pos};
-      coord endpos = {MAP_SIZE/2,MAP_SIZE/2};
-      coord path[MAP_SIZE*MAP_SIZE];
-      flashLED('H');
-      flashLED('U');
+      // in case of no elevation used, m1,m2,m3 are all blank grids.
+      // let the current floor grid be mapgrid.
+      if(currentFloor == 0)      m1 = mapGrid;
+      else if(currentFloor == 1) m2 = mapGrid;
+      else if(currentFloor == 2) m3 = mapGrid;
+      // currentFloor is already 0-indexed (0..2), matching BFS's floor arrays.
+      std::pair<int, std::pair<int, int>> currentpos = {currentFloor, {x_pos, y_pos}};
+      std::pair<int, std::pair<int, int>> endpos     = {0, {MAP_SIZE/2, MAP_SIZE/2}};
+
+      lcdPrint("starting bfs");
+      
       Serial.println("starting bfs");
-      int length = BFS(currentpos,mapGrid,endpos,path);
-      Serial.println("path calculated");
-      for(int i = length - 1;i>0;i--){
-        // coorinates to direction
-        if(path[i-1].y-path[i].y == 0){
-          if(path[i-1].x-path[i].x == 1){
-            plannedTurnDeg = turnNeededDeg(1);
-            absoluteturn(plannedTurnDeg);
-            delay(200);
-            parallel();
-            delay(100);
-            //update currentDir
-            currentDir = 1;
-            // 2) drive one tile
-            fwd(TILE_MM);
-          }
-          else if(path[i-1].x-path[i].x == -1){
-            plannedTurnDeg = turnNeededDeg(3);
-            absoluteturn(plannedTurnDeg);
-            delay(200);
-            parallel();
-            delay(100);
-            //update currentDir
-            currentDir = 3;
-            // 2) drive one tile
-            fwd(TILE_MM);
-          }
-        }
-        else{
-          if(path[i-1].y-path[i].y == 1){
-            plannedTurnDeg = turnNeededDeg(0);
-            absoluteturn(plannedTurnDeg);
-            delay(200);
-            parallel();
-            delay(100);
-            //update currentDir
-            currentDir = NORTH; // was: 3 (WEST) — wrong
-            // 2) drive one tile
-            fwd(TILE_MM);
-          }
-          else if(path[i-1].y-path[i].y == -1){
-            plannedTurnDeg = turnNeededDeg(2);
-            absoluteturn(plannedTurnDeg);
-            delay(200);
-            parallel();
-            delay(100);
-            //update currentDir
-            currentDir = SOUTH; // was: 3 (WEST) — wrong
-            // 2) drive one tile
-            fwd(TILE_MM);
-          }
-        }
-        
+      std::deque<std::pair<int, std::pair<int,int>>> path = BFS(currentpos, m1, m2, m3, endpos, false);
+      if(path.empty()){
+        lcdPrint("blue allowed");
+        path = BFS(currentpos, m1, m2, m3, endpos, true);
       }
-      flashLED('H');
+      if(path.empty()){
+        Serial.println("no path to home found, stopping");
+        while(true) drivetrain.fullstop();
+      }
+      Serial.println("path calculated");
+      // path[0]=currentpos, path[last]=endpos — iterate forward toward home
+      for(int i = 0; i < (int)path.size() - 1; i++){
+        Direction moveDir;
+        int dx = path[i+1].second.first  - path[i].second.first;
+        int dy = path[i+1].second.second - path[i].second.second;
+        if(dy == 0) moveDir = (dx == 1) ? EAST : WEST;
+        else        moveDir = (dy == 1) ? NORTH : SOUTH;
+
+        plannedTurnDeg = turnNeededDeg(moveDir);
+        absoluteturn(plannedTurnDeg);
+        delay(200);
+        parallel();
+        delay(100);
+        currentDir = moveDir;
+        fwd(TILE_MM);
+
+        // track floor changes: update currentFloor and swap the active grid
+        int dz = path[i+1].first - path[i].first;
+        if(dz > 0){
+          currentFloor++;
+          mapGrid = (currentFloor == 1) ? m2 : m3;
+        }
+        else if(dz < 0){
+          currentFloor--;
+          mapGrid = (currentFloor == 0) ? m1 : m2;
+        }
+      }
+      
       while(true){
         drivetrain.fullstop();
+        lcdPrint("back to start");
       }
     }
     case PAUSE: {
-      while(digitalRead(logicswitch)==true){
-        drivetrain.fullstop();
-        x_pos = x_checkpoint; y_pos = y_checkpoint;
+      drivetrain.fullstop();
+      delay(200);
+      if(digitalRead(logicswitch)==LOW){
+        Pausemaze = false;
+        // Restore the checkpoint's FLOOR as well as its tile. Save the grid we
+        // were working on back into its floor slot (m1=floor0, m2=floor1,
+        // m3=floor2), then load the checkpoint floor's grid as the active grid
+        // so victim flags / walls are looked up on the correct floor. (Without
+        // this, resuming after a ramp left mapGrid pointing at the wrong floor.)
+        if(currentFloor == 0)      m1 = mapGrid;
+        else if(currentFloor == 1) m2 = mapGrid;
+        else if(currentFloor == 2) m3 = mapGrid;
+        currentFloor = floor_checkpoint;
+        if(currentFloor == 0)      mapGrid = m1;
+        else if(currentFloor == 1) mapGrid = m2;
+        else if(currentFloor == 2) mapGrid = m3;
+        x_pos = x_checkpoint; y_pos = y_checkpoint; // resume from last checkpoint
+        Direction snapped = (Direction)myGyro.headingToCardinal(myGyro.heading()); // snap to cardinal
+        absoluteturn(turnNeededDeg(snapped));
+        currentDir = snapped;
+        
+        Serial.println("checkpoint coordinates");
+        Serial.println(x_checkpoint);
+        Serial.println(y_checkpoint);
+        Serial.println(currentDir);
+        state = PLAN_NEXT;
       }
-      myGyro.headingToCardinal(myGyro.heading());
-      state = SENSE_TILE;
       break;
     }
  }
- */
-
-
-
+ 
+ 
 }
